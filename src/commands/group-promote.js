@@ -1,0 +1,23 @@
+var handler = async (m, { conn, usedPrefix, command, text, groupMetadata, isAdmin }) => {
+let mentionedJid = await m.mentionedJid
+let user = mentionedJid && mentionedJid.length ? mentionedJid[0] : m.quoted && await m.quoted.sender ? await m.quoted.sender : null
+if (!user) return conn.reply(m.chat, `ꕤ Debes mencionar a un usuario para poder promoverlo a administrador.`, m, (global.rcanalr || {}))
+try {
+const groupInfo = await conn.groupMetadata(m.chat)
+const ownerGroup = groupInfo.owner || m.chat.split('-')[0] + '@s.whatsapp.net'
+if (user === ownerGroup || groupInfo.participants.some(p => p.id === user && p.admin))
+return conn.reply(m.chat, 'ꕤ El usuario mencionado ya tiene privilegios de administrador.', m, (global.rcanalr || {}))
+await conn.groupParticipantsUpdate(m.chat, [user], 'promote')
+await conn.reply(m.chat, `ꕤ Fue agregado como admin del grupo con exito.`, m, (global.rcanalr || {}))
+} catch (e) {
+conn.reply(m.chat, `⚠︎ Se ha producido un problema.\n> Usa *${usedPrefix}report* para informarlo.\n\n${e.message}`, m, (global.rcanalr || {}))
+}}
+
+handler.help = ['promote']
+handler.tags = ['grupo']
+handler.command = ['promote', 'promover']
+handler.group = true
+handler.admin = true
+handler.botAdmin = true
+
+export default handler

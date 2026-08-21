@@ -1,0 +1,74 @@
+{
+  "name": "Rory-Mercury",
+  "version": "4.3.2",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --max-old-space-size=8192 index.js",
+    "dev": "node --watch --max-old-space-size=4096 index.js",
+    "install:prod": "npm ci --production",
+    "install:dev": "npm ci",
+    "optimize": "npm dedupe && npm prune"
+  },
+  "engines": {
+    "node": ">=18.18",
+    "npm": ">=9.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chuy-RoDev/Rory-Mercury-Bot.git"
+  },
+  "dependencies": {
+    "@hapi/boom": "^10.0.1",
+    "@vitalets/google-translate-api": "^9.2.1",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "acrcloud": "^1.4.0",
+    "awesome-phonenumber": "^5.5.1",
+    "axios": "^1.1.2",
+    "boxen": "^7.1.1",
+    "cfonts": "^3.3.0",
+    "chalk": "^5.3.0",
+    "cheerio": "npm:cheerio@1.0.0-rc.12",
+    "file-type": "^18.7.0",
+    "fluent-ffmpeg": "^2.1.2",
+    "form-data": "^4.0.0",
+    "formdata-node": "^5.0.0",
+    "google-libphonenumber": "^3.2.41",
+    "gradient-string": "^2.0.2",
+    "hispamemes": "^1.0.7",
+    "human-readable": "^0.2.1",
+    "jimp": "^0.22.12",
+    "jsdom": "^29.0.1",
+    "lodash": "^4.17.21",
+    "lowdb": "^3.0.0",
+    "megajs": "^1.1.3",
+    "moment-timezone": "^0.5.46",
+    "mongoose": "^6.6.5",
+    "node-cache": "^5.1.2",
+    "node-fetch": "^3.3.2",
+    "node-gtts": "^2.0.2",
+    "node-os-utils": "^1.3.6",
+    "node-webpmux": "^3.1.3",
+    "openai": "^6.32.0",
+    "performance-now": "^2.1.0",
+    "pino": "^8.4.0",
+    "qrcode": "^1.5.1",
+    "qrcode-terminal": "^0.12.0",
+    "ruhend-scraper": "^9.0.7",
+    "sharp": "^0.34.4",
+    "similarity": "^1.2.1",
+    "url-regex-safe": "^4.0.0",
+    "uuid": "^10.0.0",
+    "ws": "^8.16.0",
+    "yargs": "^17.3.1",
+    "yt-search": "^2.13.1",
+    "ytdl-core": "^4.11.5"
+  },
+  "devDependencies": {
+    "aptoide-scraper": "*",
+    "syntax-error": "^1.4.0"
+  },
+  "optionalDependencies": {
+    "wa-sticker-formatter": "^4.4.4"
+  }
+}

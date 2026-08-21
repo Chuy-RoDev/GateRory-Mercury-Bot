@@ -1,0 +1,6 @@
+Sessions/
+sessions/
+src/database/database.json
+src/json/restart.json
+*.swp
+.env
