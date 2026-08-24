@@ -1,4 +1,5 @@
 <h1 align="center">🖤 Rory Mercury Bot</h1>
+
 <p align="center"><i>Versión mejorada y personalizada de Shiroko-Bot con temática gótica de Rory Mercury</i></p>
 
 <p align="center">
@@ -14,16 +15,15 @@
 
 ---
 
-### `❕ Información 🖤`
+## `❕ Información 🖤`
 
-**Rory-Mercury-Bot** es un bot de WhatsApp basado en **Node.js** con la librería **@whiskeysockets/Baileys**.
-Más de 90 comandos organizados en 12 categorías con temática gótica.
+**Rory-Mercury-Bot** es un bot de WhatsApp basado en **Node.js** con la librería **@whiskeysockets/Baileys**. Más de 90 comandos organizados en 12 categorías con temática gótica.
 
 🚫 Este proyecto **NO** está afiliado a WhatsApp ni WhatsApp LLC.
 
 ---
 
-### 🛡️ Créditos
+## 🛡️ Créditos
 
 | Rol | Encargado | Enlace |
 |---|---|---|
@@ -129,7 +129,7 @@ Más de 90 comandos organizados en 12 categorías con temática gótica.
 
 ---
 
-### 📥 Necesitas instalar una de estas herramientas
+## 📥 Necesitas instalar una de estas herramientas
 
 <p align="center">
   <a href="https://f-droid.org/es/packages/com.termux/"><img src="https://img.shields.io/badge/DESCARGAR-Termux-black?style=for-the-badge&logo=android"/></a>
@@ -138,97 +138,115 @@ Más de 90 comandos organizados en 12 categorías con temática gótica.
 
 ---
 
-### 📱 Instala desde Termux
+## 📱 Instala desde Termux
 
 <details>
 <summary><b>✰ Instalación Manual</b></summary>
 
-**Paso 1 — Permisos y dependencias**
+### Paso 1 — Permisos y dependencias
+
 ```bash
 termux-setup-storage
 ```
+
 ```bash
 apt update && apt upgrade -y && pkg install -y git nodejs ffmpeg imagemagick yarn build-essential python
 ```
 
-**Paso 2 — Clonar el repositorio**
+### Paso 2 — Clonar el repositorio
+
 ```bash
-git clone https://github.com/Chuy-RoDev/Rory-Mercury-Bot && cd Rory-Mercury-Bot
+git clone https://github.com/Chuy-RoDev/GateRory-Mercury-Bot && cd GateRory-Mercury-Bot
 ```
 
-**Paso 3 — Limpiar módulos incompatibles**
+### Paso 3 — Limpiar módulos incompatibles
+
 ```bash
 rm -rf node_modules
 ```
-> Este paso es obligatorio. Los módulos incluidos en el repo están compilados para x86 (Cloud Shell) y no funcionan en ARM (Termux). Borrarlos aquí permite que npm los recompile correctamente para tu dispositivo.
 
-**Paso 4 — Aprobar scripts de instalación nativos**
+> Este paso es **obligatorio**. Los módulos incluidos en el repo están compilados para x86 (Cloud Shell) y no funcionan en ARM (Termux). Borrarlos aquí permite que npm los recompile correctamente para tu dispositivo.
+
+### Paso 4 — Aprobar scripts de instalación nativos
+
 ```bash
 npm approve-scripts @whiskeysockets/baileys && npm approve-scripts sharp && npm approve-scripts protobufjs && npm approve-scripts imagemaker.js
 ```
 
-**Paso 5 — Instalar dependencias**
+### Paso 5 — Instalar dependencias
+
 ```bash
 npm install
 ```
 
-**Paso 6 — Iniciar el bot**
+### Paso 6 — Iniciar el bot
+
 ```bash
 npm start
 ```
+
 > Si aparece `(Y/I/N/O/D/Z) [default=N]` usa `"y"` y luego `ENTER`.
 
 ---
 
-**⏱️ Mantener activo con PM2**
+### ⏱️ Mantener activo con PM2
+
 ```bash
 termux-wake-lock && npm i -g pm2 && pm2 start index.js -- --session TuNombre && pm2 save && pm2 logs
 ```
+
 > Reemplaza `TuNombre` por el nombre de tu sesión. Ejemplo: `Principal`, `Rory`, `Chuy`.
 
 ---
 
-**♻️ Si el bot se detiene y quieres reiniciarlo**
+### ♻️ Si el bot se detiene y quieres reiniciarlo
+
 ```bash
-cd Rory-Mercury-Bot && npm start
+cd GateRory-Mercury-Bot && npm start
 ```
 
-**🔑 Si necesitas un nuevo código QR o de vinculación**
+### 🔑 Si necesitas un nuevo código QR o de vinculación
+
 ```bash
-cd Rory-Mercury-Bot && rm -rf Sessions/Principal && npm start
+cd GateRory-Mercury-Bot && rm -rf Sessions/Principal && npm start
 ```
 
 </details>
 
 ---
 
-### ☁️ Instala desde Cloud Shell
+## ☁️ Instala desde Cloud Shell
 
 <details>
 <summary><b>✰ Instalación en Google Cloud Shell</b></summary>
 
 ```bash
-git clone https://github.com/Chuy-RoDev/Rory-Mercury-Bot && cd Rory-Mercury-Bot
+git clone https://github.com/Chuy-RoDev/GateRory-Mercury-Bot && cd GateRory-Mercury-Bot
 ```
+
 ```bash
 npm install
 ```
+
 ```bash
 node index.js -- --session TuNombre
 ```
+
 > Reemplaza `TuNombre` por el nombre de tu sesión. Ejemplo: `Tonaituh`, `Miku`, `Rory`.
 
-**⏱️ Mantener activo con PM2**
+### ⏱️ Mantener activo con PM2
+
 ```bash
 npm i -g pm2 && pm2 start index.js -- --session TuNombre && pm2 save && pm2 logs
 ```
+
 > Cloud Shell cierra sesión por inactividad. Con PM2 se mantiene mientras la pestaña esté abierta.
 
 </details>
 
 ---
 
-### ⚙️ Configuración
+## ⚙️ Configuración
 
 Edita `src/config.js`:
 
@@ -246,7 +264,7 @@ Edita `src/config.js`:
 
 ---
 
-### 📌 Notas importantes
+## 📌 Notas importantes
 
 - El bot funciona **solo en grupos** por defecto
 - El owner puede operar desde privado con: `restart`, `update`, `join`, `reload`
