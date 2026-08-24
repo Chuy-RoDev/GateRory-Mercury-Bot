@@ -1,0 +1,26 @@
+{
+  "minValor": 8000,
+  "groups": {
+    "120363425869313503@g.us": {
+      "enabled": true,
+      "status": "IDLE",
+      "targetBot": "152132338622498@lid",
+      "lastStateTime": 1787602342944,
+      "lastSentRwTime": 1787601081702
+    },
+    "120363411539538413@g.us": {
+      "enabled": true,
+      "status": "IDLE",
+      "lastStateTime": 1787602268095,
+      "targetBot": "161783214010460@lid",
+      "lastSentRwTime": 1787602262284
+    },
+    "120363410656251328@g.us": {
+      "enabled": true,
+      "status": "IDLE",
+      "lastStateTime": 1787602242641,
+      "targetBot": "161783214010460@lid",
+      "lastSentRwTime": 1787602236941
+    }
+  }
+}

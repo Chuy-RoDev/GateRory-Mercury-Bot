@@ -29,6 +29,39 @@ const savenow = {
     }
 }
 
+// Función para competir ambas APIs al mismo tiempo (gana la que responda primero)
+const raceDownload = async (url, formatType) => {
+    const kzmPromise = (async () => {
+        const endpoint = formatType === 'mp3' ? 'ytaudio' : 'ytmp4'
+        const res = await fetch(`https://${KZM_URL}/api/download/${endpoint}?url=${encodeURIComponent(url)}&apiKey=${KZM_KEY}`)
+        const json = await res.json()
+        if (json.status && json.result?.download_url) {
+            return { link: json.result.download_url, title: json.result.title }
+        }
+        throw new Error('KZM falló')
+    })()
+
+    const savenowPromise = (async () => {
+        if (formatType === 'mp3') {
+            const dl = await savenow.ytdl(url, 'mp3')
+            if (!dl.error && dl.link) return { link: dl.link, title: dl.title }
+        } else {
+            const resoluciones = ['480', '360', '720', 'mp4']
+            for (const res of resoluciones) {
+                const dl = await savenow.ytdl(url, res)
+                if (!dl.error && dl.link) return { link: dl.link, title: dl.title }
+            }
+        }
+        throw new Error('SaveNow falló')
+    })()
+
+    try {
+        return await Promise.any([kzmPromise, savenowPromise])
+    } catch {
+        throw new Error('Todas las APIs de descarga fallaron.')
+    }
+}
+
 const handler = async (m, { conn, text, usedPrefix, command }) => {
     if (!text) return m.reply(
         `╭─「 🎵 𝗬𝗼𝘂𝗧𝘂𝗯𝗲 」\n` +
@@ -70,77 +103,28 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
                 `╰─────────────────`
         }, { quoted: m })
 
+        const formatType = isAudio ? 'mp3' : 'mp4'
+        const result = await raceDownload(v.url, formatType)
+        const downloadUrl = result.link
+        const finalTitle = result.title || v.title
+
         if (isAudio) {
-            // Audio — Intentar con KZM primero
-            try {
-                const res = await fetch(`https://${KZM_URL}/api/download/ytaudio?url=${encodeURIComponent(v.url)}&apiKey=${KZM_KEY}`)
-                const json = await res.json()
-                if (json.status && json.result?.download_url) {
-                    await conn.sendMessage(m.chat, {
-                        audio: { url: json.result.download_url },
-                        mimetype: 'audio/mp4',
-                        fileName: `${v.title}.mp3`
-                    }, { quoted: m })
-                    return await m.react('✔️')
-                }
-            } catch { /* fallback a savenow */ }
-
-            // Fallback savenow audio
-            const dl = await savenow.ytdl(v.url, 'mp3')
-            if (dl.error) throw dl.error
             await conn.sendMessage(m.chat, {
-                audio: { url: dl.link },
+                audio: { url: downloadUrl },
                 mimetype: 'audio/mpeg',
-                fileName: `${v.title}.mp3`
+                fileName: `${finalTitle}.mp3`
             }, { quoted: m })
-
         } else {
-            // Video — Agregamos KZM como primera opción
-            let videoEnviado = false;
-            try {
-                const res = await fetch(`https://${KZM_URL}/api/download/ytmp4?url=${encodeURIComponent(v.url)}&apiKey=${KZM_KEY}`)
-                const json = await res.json()
-                if (json.status && json.result?.download_url) {
-                    await conn.sendMessage(m.chat, {
-                        video: { url: json.result.download_url },
-                        caption:
-                            `╭─「 🎬 𝗩𝗶𝗱𝗲𝗼 」\n` +
-                            `│ ✦ *${v.title}*\n` +
-                            `│ _Descarga completada._ ✅\n` +
-                            `╰─────────────────`,
-                        mimetype: 'video/mp4',
-                        fileName: 'video.mp4' // Ayuda a que WhatsApp no lo deje invisible
-                    }, { quoted: m })
-                    videoEnviado = true;
-                    return await m.react('✔️')
-                }
-            } catch { /* fallback a savenow */ }
-
-            // Fallback savenow video iterando resoluciones óptimas
-            if (!videoEnviado) {
-                // Orden de prioridad: 480p (Óptimo), 360p (Ligero), 720p (HD, si los otros fallan)
-                const resoluciones = ['480', '360', '720', 'mp4']; 
-                let dl;
-                
-                // Jugar entre resoluciones hasta encontrar la que funcione
-                for (const res of resoluciones) {
-                    dl = await savenow.ytdl(v.url, res);
-                    if (!dl.error && dl.link) break; // Si hay éxito, sale del bucle
-                }
-
-                if (!dl || dl.error) throw dl?.error || 'No se pudo generar el video en ninguna resolución estable.';
-                
-                await conn.sendMessage(m.chat, {
-                    video: { url: dl.link },
-                    caption:
-                        `╭─「 🎬 𝗩𝗶𝗱𝗲𝗼 」\n` +
-                        `│ ✦ *${v.title}*\n` +
-                        `│ _Descarga completada._ ✅\n` +
-                        `╰─────────────────`,
-                    mimetype: 'video/mp4',
-                    fileName: 'video.mp4' // Clave para evitar "videos fantasma"
-                }, { quoted: m })
-            }
+            await conn.sendMessage(m.chat, {
+                video: { url: downloadUrl },
+                caption:
+                    `╭─「 🎬 𝗩𝗶𝗱𝗲𝗼 」\n` +
+                    `│ ✦ *${finalTitle}*\n` +
+                    `│ _Descarga completada._ ✅\n` +
+                    `╰─────────────────`,
+                mimetype: 'video/mp4',
+                fileName: 'video.mp4'
+            }, { quoted: m })
         }
 
         await m.react('✔️')

@@ -32,7 +32,7 @@ let handler = async (m, { conn, args, usedPrefix, command, quoted }) => {
             ? mentionedJid[0]
             : null
 
-        if (targetRaw && targetRaw.includes('@lid')) {
+        if (targetRaw && typeof targetRaw === 'string' && targetRaw.includes('@lid')) {
             try {
                 const meta = await conn.groupMetadata(m.chat)
                 const found = meta.participants.find(p =>
@@ -46,11 +46,11 @@ let handler = async (m, { conn, args, usedPrefix, command, quoted }) => {
         if (!targetRaw && quoted) {
             targetRaw = await Promise.resolve(quoted.sender)
             if (typeof targetRaw !== 'string') {
-                targetRaw = targetRaw?.jid || targetRaw?.id || String(targetRaw)
+                targetRaw = targetRaw?.jid || targetRaw?.id || String(targetRaw || '')
             }
         }
 
-        let targetUser = targetRaw || m.sender
+        let targetUser = String(targetRaw || m.sender || '');
         
         if (targetUser.includes('@lid') || !targetUser.includes('@s.whatsapp.net')) {
             try {
@@ -62,7 +62,7 @@ let handler = async (m, { conn, args, usedPrefix, command, quoted }) => {
                     p.lid?.split('@')[0] === targetUser.split('@')[0] ||
                     p.jid?.split('@')[0] === targetUser.split('@')[0]
                 )
-                if (found) targetUser = found.jid || found.id || targetUser
+                if (found) targetUser = String(found.jid || found.id || targetUser);
             } catch {
                 targetUser = targetUser
             }
@@ -75,11 +75,14 @@ let handler = async (m, { conn, args, usedPrefix, command, quoted }) => {
         const charactersData = await loadCharacters();
         const allCharacters = flattenCharacters(charactersData);
 
-        // Obtener personajes del usuario objetivo
+        // Obtener personajes del usuario objetivo (BLINDADO CONTRA ERRORES DE TIPO)
+        const targetNum = String(targetUser || '').replace(/[^0-9]/g, '');
         const userCharacters = Object.entries(global.db.data.characters)
-            .filter(([_, charData]) => 
-                (charData.user || '').replace(/[^0-9]/g, '') === targetUser.replace(/[^0-9]/g, '')
-            )
+            .filter(([_, charData]) => {
+                if (!charData) return false;
+                const charUserNum = String(charData.user || '').replace(/[^0-9]/g, '');
+                return charUserNum === targetNum && charUserNum !== '';
+            })
             .map(([charId]) => charId);
 
         // Verificar si el usuario tiene personajes

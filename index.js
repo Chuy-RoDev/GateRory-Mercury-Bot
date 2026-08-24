@@ -72,33 +72,40 @@ console.log(chalk.hex('#00FFFF').bold('║   🖤 Rory Mercury - BOT  ║'))
 console.log(chalk.hex('#00FFFF')('╚══════════════════════════════╝'))
 
 // ─────────────────────────────────────────────────────────────
-// VERIFICACIÓN AUTOMÁTICA DE FFMPEG
+// VERIFICACIÓN E INSTALACIÓN AUTOMÁTICA DE FFMPEG
 // ─────────────────────────────────────────────────────────────
-function instalarFFmpeg() {
-    console.log(chalk.yellow('⚠ ffmpeg no encontrado. Instalando...'))
-    try {
-        execSync('sudo apt-get update -y', { stdio: 'inherit' })
-        execSync('sudo apt-get install -y ffmpeg', { stdio: 'inherit' })
-        execSync('sudo apt-get install -y ffmpeg --fix-missing', { stdio: 'inherit' })
-        if (verificarFFmpeg()) {
-            console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado correctamente'))
-            return true
-        }
-        // Intento alternativo con snap
-        try {
-            execSync('sudo snap install ffmpeg', { stdio: 'inherit' })
-            if (verificarFFmpeg()) {
-                console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado via snap'))
-                return true
-            }
-        } catch {}
-        console.log(chalk.red('✗ ffmpeg no responde tras instalacion.'))
-        return false
-    } catch (e) {
-        console.log(chalk.red('✗ No se pudo instalar ffmpeg: ' + e.message))
-        return false
-    }
+function verificarFFmpeg() {
+  try {
+    execSync('ffmpeg -version', { stdio: 'ignore' })
+    return true
+  } catch {
+    return false
+  }
 }
+
+function asegurarFFmpeg() {
+  if (verificarFFmpeg()) {
+    console.log(chalk.hex('#00FFFF')('✓ ffmpeg detectado en el sistema'))
+    return true
+  }
+
+  console.log(chalk.yellow('⚠ ffmpeg no encontrado. Instalando automáticamente...'))
+  try {
+    execSync('sudo apt-get update -y && sudo apt-get install -y ffmpeg', { stdio: 'inherit' })
+    
+    if (verificarFFmpeg()) {
+      console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado correctamente'))
+      return true
+    }
+  } catch (e) {
+    console.log(chalk.red('✗ Error durante la instalación de ffmpeg: ' + e.message))
+  }
+  
+  return false
+}
+
+// Ejecutar la verificación inmediatamente al iniciar
+asegurarFFmpeg()
 // ─────────────────────────────────────────────────────────────
 
 let prefixArray = Array.isArray(global.prefix) ? global.prefix : [global.prefix || ':']
