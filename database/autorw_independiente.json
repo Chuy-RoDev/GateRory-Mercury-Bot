@@ -1,0 +1,65 @@
+{
+  "120363425869313503@g.us_5215656953441": {
+    "enabled": false,
+    "min": 0,
+    "inGameName": "",
+    "status": "IDLE",
+    "lastGinfo": 0
+  },
+  "120363425869313503@g.us_5218787011417": {
+    "enabled": true,
+    "min": 8500,
+    "inGameName": "",
+    "status": "WAITING_GINFO",
+    "lastGinfo": 1787794093145
+  },
+  "120363425869313503@g.us_59171018928": {
+    "enabled": true,
+    "min": 50,
+    "inGameName": "",
+    "status": "WAITING_GINFO",
+    "lastGinfo": 1787794105231
+  },
+  "120363411539538413@g.us_5215656953441": {
+    "enabled": false,
+    "min": 0,
+    "inGameName": "",
+    "status": "IDLE",
+    "lastGinfo": 0
+  },
+  "120363420819546616@g.us_5218787011417": {
+    "enabled": true,
+    "min": 8500,
+    "inGameName": "",
+    "status": "WAITING_GINFO",
+    "lastGinfo": 1787793890107
+  },
+  "120363420819546616@g.us_59171018928": {
+    "enabled": true,
+    "min": 0,
+    "inGameName": "",
+    "status": "WAITING_GINFO",
+    "lastGinfo": 1787793890190
+  },
+  "253819699073123@lid_5218787011417": {
+    "enabled": false,
+    "min": 0,
+    "inGameName": "",
+    "status": "IDLE",
+    "lastGinfo": 0
+  },
+  "120363427775001317@g.us_59171018928": {
+    "enabled": false,
+    "min": 0,
+    "inGameName": "",
+    "status": "IDLE",
+    "lastGinfo": 0
+  },
+  "120363410656251328@g.us_5215656953441": {
+    "enabled": false,
+    "min": 0,
+    "inGameName": "",
+    "status": "IDLE",
+    "lastGinfo": 0
+  }
+}

@@ -1,14 +1,16 @@
-// CAMBIÉ LA RUTA DE IMPORTACIÓN PARA QUE ENCUENTRE EL ARCHIVO
 import { smsg } from "../../lib/simple.js" 
 
 let handler = async (m, { conn, text }) => {
+    // Obtener el nombre del bot dinámicamente
+    let botname = global.botname || conn.user?.name || 'Bot'
+
     // SUB-COMANDO PARA SALIR DE UN GRUPO POR ID
     if (text) {
         let id = text.trim()
         if (!id.endsWith('@g.us')) return m.reply('⚠️ El ID debe terminar en @g.us')
         await m.reply(`👋 Saliendo del grupo: ${id}...`)
         await conn.groupLeave(id)
-        return m.reply('✅ Shiroko se ha retirado del grupo con éxito.')
+        return m.reply(`✅ *${botname}* se ha retirado del grupo con éxito.`)
     }
 
     // COMANDO PRINCIPAL: LISTAR GRUPOS Y LINKS
@@ -27,8 +29,8 @@ let handler = async (m, { conn, text }) => {
         }
     }
 
-    let footer = `\n\n💡 *TIP:* Si quieres que Shiroko se salga de un grupo sin link, usa:\n\`:links [ID-del-grupo]\``
-    let texto = `📊 *REPORTE DE GRUPOS - SHIROKO*\n\n${links.join('\n\n')}${footer}`
+    let footer = `\n\n💡 *TIP:* Si quieres que *${botname}* se salga de un grupo sin link, usa:\n\`:links [ID-del-grupo]\``
+    let texto = `📊 *REPORTE DE GRUPOS - ${botname.toUpperCase()}*\n\n${links.join('\n\n')}${footer}`
     
     await conn.reply(m.sender, texto, m)
     m.reply('📦 Reporte enviado al privado, Comandante.')

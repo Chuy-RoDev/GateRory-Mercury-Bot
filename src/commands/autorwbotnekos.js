@@ -7,14 +7,19 @@ global.autorwProcessedMsgs = global.autorwProcessedMsgs || new Set()
 global.autorwTimers = global.autorwTimers || {}
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-const getRandomDelay = (min = 4000, max = 7000) => Math.floor(Math.random() * (max - min + 1)) + min
+const getRandomDelay = (min = 3500, max = 5500) => Math.floor(Math.random() * (max - min + 1)) + min
+const getClaimDelay = (min = 2500, max = 4000) => Math.floor(Math.random() * (max - min + 1)) + min
 
 const cleanUnicode = (str) => {
     if (!str) return ''
     return str
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
         .replace(/\p{Cf}/gu, '')
         .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E\u2060\u061C]/g, '')
 }
+
+const getCleanNumber = (jid) => jid ? String(jid).split('@')[0].split(':')[0].replace(/[^0-9]/g, '') : ''
 
 const loadConfig = () => {
     if (!fs.existsSync('./database')) fs.mkdirSync('./database', { recursive: true })
@@ -43,17 +48,20 @@ const loadConfig = () => {
 
 const saveConfig = (data) => fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2))
 
-const getGroupConfig = (config, chat) => {
-    if (!config.groups[chat]) {
-        config.groups[chat] = {
+const getGroupConfig = (config, chat, botNum) => {
+    const key = `${chat}_${botNum}`
+    if (!config.groups[key]) {
+        config.groups[key] = {
             enabled: false,
             status: 'IDLE',
             lastStateTime: Date.now(),
+            lastSentGinfoTime: 0,
             lastSentRwTime: 0,
+            botName: '',
             targetBot: ''
         }
     }
-    return config.groups[chat]
+    return config.groups[key]
 }
 
 const parseCooldown = (text, typePattern) => {
@@ -63,7 +71,7 @@ const parseCooldown = (text, typePattern) => {
     const line = lines.find(l => new RegExp(typePattern, 'i').test(l)) || cleaned
 
     const lower = line.toLowerCase()
-    if (/ahora|listo|disponible|ready/i.test(lower) && !/espera|cooldown|faltan/i.test(lower)) return 0
+    if (/listo|disponible|ready|ahora/i.test(lower) && !/espera|cooldown|faltan|\d+\s*m/i.test(lower)) return 0
 
     const minsMatch = lower.match(/(\d+)\s*(?:m|min|minutos?)/i)
     const secsMatch = lower.match(/(\d+)\s*(?:s|seg|segundos?)/i)
@@ -74,11 +82,7 @@ const parseCooldown = (text, typePattern) => {
     const secs = secsMatch ? parseInt(secsMatch[1], 10) : 0
 
     const totalMs = (hours * 3600 + mins * 60 + secs) * 1000
-    if (totalMs > 0) return totalMs
-
-    if (/espera|cooldown|faltan|agotado/i.test(lower)) return 60000
-
-    return 0
+    return totalMs > 0 ? totalMs : 0
 }
 
 const parseValue = (text) => {
@@ -86,7 +90,8 @@ const parseValue = (text) => {
     if (!cleaned) return 0
 
     const lines = cleaned.split(/[\n\r]+/)
-    const valorLine = lines.find(l => /Valor/i.test(l))
+    // Evitar leer "Valor total"
+    const valorLine = lines.find(l => /Valor\s*»|Valor\s*:/i.test(l) && !/Valor\s*total/i.test(l))
     if (!valorLine) return 0
 
     const afterValor = valorLine.substring(valorLine.search(/Valor/i))
@@ -110,142 +115,96 @@ const parseValue = (text) => {
     }
 }
 
-const getCleanNumber = (jid) => jid ? String(jid).split('@')[0].split(':')[0].replace(/[^0-9]/g, '') : ''
+const resetTimer = (conn, chat, timeMs = 10 * 60 * 1000) => {
+    const myCleanNumber = getCleanNumber(conn.user?.jid)
+    const timerKey = `${chat}_${myCleanNumber}`
 
-const reset10MinTimer = (conn, chat) => {
-    if (global.autorwTimers[chat]) clearTimeout(global.autorwTimers[chat])
+    if (global.autorwTimers[timerKey]) clearTimeout(global.autorwTimers[timerKey])
 
-    const TEN_MINUTES = 10 * 60 * 1000
-
-    global.autorwTimers[chat] = setTimeout(async () => {
+    global.autorwTimers[timerKey] = setTimeout(async () => {
         let config = loadConfig()
-        let gConfig = getGroupConfig(config, chat)
+        let gConfig = getGroupConfig(config, chat, myCleanNumber)
 
         if (!gConfig.enabled) return
 
         gConfig.status = 'WAITING_GINFO'
         gConfig.lastStateTime = Date.now()
+        gConfig.lastSentGinfoTime = Date.now()
         saveConfig(config)
 
-        await delay(getRandomDelay(4000, 7000))
-        
-        config = loadConfig()
-        gConfig = getGroupConfig(config, chat)
-        if (gConfig.status === 'WAITING_GINFO') {
-            await conn.sendMessage(chat, { text: '#ginfo' })
-        }
-        
-        reset10MinTimer(conn, chat)
-    }, TEN_MINUTES)
-}
-
-const restoreLoops = (conn) => {
-    const config = loadConfig()
-    for (const chat of Object.keys(config.groups)) {
-        if (config.groups[chat].enabled) {
-            reset10MinTimer(conn, chat)
-        }
-    }
+        await delay(getRandomDelay(3000, 5000))
+        await conn.sendMessage(chat, { text: '#ginfo' })
+        resetTimer(conn, chat, 10 * 60 * 1000)
+    }, timeMs)
 }
 
 let handler = async (m, { conn, args, usedPrefix, command }) => {
     let config = loadConfig()
     const chat = m.chat
-    const gConfig = getGroupConfig(config, chat)
+    const myCleanNumber = getCleanNumber(conn.user?.jid)
+    const gConfig = getGroupConfig(config, chat, myCleanNumber)
     const subCommand = args[0]?.toLowerCase()
-    
-    if (subCommand === 'min') {
-        const newMin = parseInt(args[1], 10)
-        if (isNaN(newMin)) return conn.sendMessage(chat, { text: `Ejemplo: ${usedPrefix + command} min 8000` }, { quoted: m })
-        config.minValor = newMin
-        saveConfig(config)
-        return conn.sendMessage(chat, { text: `Mínimo global actualizado a: ${newMin}` }, { quoted: m })
-    }
-    
+
     if (subCommand === 'off') {
         gConfig.enabled = false
         gConfig.status = 'IDLE'
         saveConfig(config)
-        
-        if (global.autorwTimers[chat]) {
-            clearTimeout(global.autorwTimers[chat])
-            delete global.autorwTimers[chat]
-        }
-        return conn.sendMessage(chat, { text: `AutoRW desactivado en este grupo.` }, { quoted: m })
+        const timerKey = `${chat}_${myCleanNumber}`
+        if (global.autorwTimers[timerKey]) clearTimeout(global.autorwTimers[timerKey])
+        return conn.sendMessage(chat, { text: `ꕤ AutoRW desactivado para @${myCleanNumber}.` }, { quoted: m })
     }
     
     if (subCommand === 'sync') {
+        const manualName = args.slice(1).join(' ').trim()
         gConfig.enabled = true
+        if (manualName) gConfig.botName = manualName
         gConfig.targetBot = m.quoted?.sender || (m.mentionedJid && m.mentionedJid[0]) || gConfig.targetBot || ''
         gConfig.status = 'WAITING_GINFO'
         gConfig.lastStateTime = Date.now()
+        gConfig.lastSentGinfoTime = Date.now()
         saveConfig(config)
         
-        reset10MinTimer(conn, chat)
-
-        await conn.sendMessage(chat, { text: `AutoRW activado. Enviando #ginfo con delay (4-7s)...` }, { quoted: m })
-
-        await delay(getRandomDelay(4000, 7000))
+        resetTimer(conn, chat, 10 * 60 * 1000)
+        await conn.sendMessage(chat, { text: `ꕤ AutoRW activado para @${myCleanNumber}${gConfig.botName ? ` (${gConfig.botName})` : ''}. Sincronizando...` }, { quoted: m })
+        await delay(getRandomDelay(2500, 4500))
         return conn.sendMessage(chat, { text: '#ginfo' })
     }
-    
-    const activeCount = Object.values(config.groups).filter(g => g.enabled).length
-    const cleanNumber = getCleanNumber(gConfig.targetBot)
-    
-    return conn.sendMessage(chat, { 
-        text: `Estado en este grupo: ${gConfig.enabled ? 'Activado' : 'Desactivado'}\n` +
-              `Bot objetivo: ${cleanNumber ? '@' + cleanNumber : 'Auto-detectar respuesta'}\n` +
-              `Grupos Activos: ${activeCount}\n` +
-              `Valor Mínimo: ${parseInt(config.minValor || 8000, 10)}\n\n` +
-              `• ${usedPrefix + command} sync\n` +
-              `• ${usedPrefix + command} off\n` +
-              `• ${usedPrefix + command} min <valor>`,
-        mentions: gConfig.targetBot ? [gConfig.targetBot] : []
-    }, { quoted: m })
+
+    return conn.sendMessage(chat, { text: `Usa *${usedPrefix + command} sync [nombre_opcional]* para activar o *${usedPrefix + command} off* para desactivar.` }, { quoted: m })
 }
 
 handler.before = async function (m, { conn }) {
     if (!m.chat || m.isBaileys) return
 
-    if (!global.autorwRestored) {
-        global.autorwRestored = true
-        restoreLoops(conn)
-    }
-
-    if (global.autorwProcessedMsgs.size > 500) global.autorwProcessedMsgs.clear()
+    const myJid = conn.user?.jid || ''
+    const myCleanNumber = getCleanNumber(myJid)
+    if (!myCleanNumber) return
 
     const chat = m.chat
     let config = loadConfig()
-    const gConfig = getGroupConfig(config, chat)
-    
+    const gConfig = getGroupConfig(config, chat, myCleanNumber)
+
     if (!gConfig.enabled) return
 
-    if (gConfig.status !== 'IDLE' && (Date.now() - (gConfig.lastStateTime || 0) > 30000)) {
+    // Timeout de seguridad si el bot se atasca en un estado
+    if (gConfig.status !== 'IDLE' && (Date.now() - (gConfig.lastStateTime || 0) > 18000)) {
         gConfig.status = 'IDLE'
         saveConfig(config)
     }
 
     let rawText = m.text || m.caption || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || ''
     const cleanText = cleanUnicode(rawText)
-    
     if (!cleanText) return
 
-    const isUserGachaCmd = /^[/#.!]?\s*(ginfo|rw|rollwaifu|c|claim)\b/i.test(cleanText.trim())
-    if (isUserGachaCmd && !m.key?.fromMe) {
-        reset10MinTimer(conn, chat)
-        gConfig.status = 'IDLE'
-        saveConfig(config)
-    }
-
-    if (m.key?.fromMe || m.sender === conn.user?.jid) return
-    
     const msgId = m.key?.id || m.id
-    if (msgId && global.autorwProcessedMsgs.has(msgId)) return
-    
+    const processKey = `${msgId}_${myCleanNumber}`
+    if (msgId && global.autorwProcessedMsgs.has(processKey)) return
+
     let senderJid = m.sender || m.key?.participant || ''
-    
-    const isGinfoMsg = /RollWaifu|Roll Waifu|Personajes reclamados|Personajes totales/i.test(cleanText)
-    const isCardMsg = /Valor\s*»|✰\s*Valor|Valor\s*:/i.test(cleanText)
+
+    // EXPRESIONES REGULARES DE TIPO DE MENSAJE ESTRICTAS
+    const isGinfoMsg = /RollWaifu|Roll Waifu|Personajes reclamados|Personajes totales|Valor total/i.test(cleanText)
+    const isCardMsg = !isGinfoMsg && /Nombre\s*»|Fuente\s*»/i.test(cleanText) && /Valor\s*»/i.test(cleanText)
     const isCooldownMsg = /Debes esperar|cooldown|agotado/i.test(cleanText)
 
     if (isGinfoMsg || isCardMsg || isCooldownMsg) {
@@ -260,87 +219,94 @@ handler.before = async function (m, { conn }) {
     }
 
     if (!gConfig.targetBot) return
-    
-    const cleanTarget = getCleanNumber(gConfig.targetBot)
-    const cleanSender = getCleanNumber(senderJid)
-    if (cleanSender !== cleanTarget) return
+    if (getCleanNumber(senderJid) !== getCleanNumber(gConfig.targetBot)) return
 
-    reset10MinTimer(conn, chat)
+    const quotedSender = m.quoted ? getCleanNumber(m.quoted.sender) : null
 
+    // CASO 1: Mensaje de Cooldown
     if (isCooldownMsg) {
-        if (msgId) global.autorwProcessedMsgs.add(msgId)
+        if (msgId) global.autorwProcessedMsgs.add(processKey)
+        const waitMs = parseCooldown(cleanText, 'esperar|cooldown') || (3 * 60 * 1000)
         gConfig.status = 'IDLE'
-        gConfig.lastStateTime = Date.now()
         saveConfig(config)
+        resetTimer(conn, chat, waitMs + getRandomDelay(3000, 6000))
         return
     }
 
-    if (isGinfoMsg && gConfig.status === 'WAITING_GINFO') {
-        if (msgId) global.autorwProcessedMsgs.add(msgId)
-        
-        const claimCooldown = parseCooldown(cleanText, 'Claim')
-        const rwCooldown = parseCooldown(cleanText, 'RollWaifu|Roll Waifu')
-        
-        if (claimCooldown === 0 && rwCooldown === 0) {
-            gConfig.status = 'WAITING_RW'
-            gConfig.lastStateTime = Date.now()
-            gConfig.lastSentRwTime = Date.now()
-            saveConfig(config)
-            
-            await delay(getRandomDelay(4000, 7000))
-            
-            config = loadConfig()
-            if (config.groups[chat]?.status === 'WAITING_RW') {
-                return conn.sendMessage(chat, { text: '#rw' })
+    // CASO 2: Respuesta a #ginfo
+    if (isGinfoMsg) {
+        // Ignorar respuestas destinadas explícitamente a otro bot
+        if (quotedSender && quotedSender !== myCleanNumber) return
+
+        const userHeaderMatch = cleanText.match(/Usuario\s*[`<"']*\s*([^`"'>\n]+)/i)
+        if (userHeaderMatch && userHeaderMatch[1]) {
+            const extractedName = userHeaderMatch[1].trim().replace(/[`<"'>]/g, '')
+            if (extractedName && gConfig.botName !== extractedName && (quotedSender === myCleanNumber || gConfig.status === 'WAITING_GINFO')) {
+                gConfig.botName = extractedName
+                saveConfig(config)
             }
-        } else {
-            gConfig.status = 'IDLE'
-            gConfig.lastStateTime = Date.now()
-            saveConfig(config)
-            return
         }
+
+        if (gConfig.status === 'WAITING_GINFO') {
+            if (msgId) global.autorwProcessedMsgs.add(processKey)
+            
+            const claimCooldown = parseCooldown(cleanText, 'Claim')
+            const rwCooldown = parseCooldown(cleanText, 'RollWaifu|Roll Waifu')
+            const maxCooldown = Math.max(claimCooldown, rwCooldown)
+            
+            if (maxCooldown === 0) {
+                gConfig.status = 'WAITING_RW'
+                gConfig.lastStateTime = Date.now()
+                gConfig.lastSentRwTime = Date.now()
+                saveConfig(config)
+                
+                await delay(getRandomDelay(3000, 5000))
+                return conn.sendMessage(chat, { text: '#rw' })
+            } else {
+                gConfig.status = 'IDLE'
+                saveConfig(config)
+                resetTimer(conn, chat, maxCooldown + getRandomDelay(3000, 6000))
+                return
+            }
+        }
+        return
     }
 
+    // CASO 3: Aparición de una Carta (Waifu)
     if (isCardMsg) {
-        const wasMyRoll = (Date.now() - (gConfig.lastSentRwTime || 0)) < 15000
-        if (!wasMyRoll || gConfig.status !== 'WAITING_RW') return
+        const elapsedTime = Date.now() - (gConfig.lastSentRwTime || 0)
+        if (elapsedTime > 25000 || gConfig.status !== 'WAITING_RW') return
 
-        if (msgId) global.autorwProcessedMsgs.add(msgId)
+        if (msgId) global.autorwProcessedMsgs.add(processKey)
         
         const itemValue = parseValue(cleanText)
         const minVal = parseInt(config.minValor || 8000, 10)
         
         if (itemValue >= minVal) {
-            await delay(getRandomDelay(4000, 7000))
+            // Reclamar la carta citando explícitamente el mensaje del bot de gacha
+            await delay(getClaimDelay(2500, 4000))
             await conn.sendMessage(chat, { text: '#c' }, { quoted: m })
             
             gConfig.status = 'WAITING_GINFO'
             gConfig.lastStateTime = Date.now()
+            gConfig.lastSentGinfoTime = Date.now()
             saveConfig(config)
             
-            await delay(getRandomDelay(4000, 7000))
-            
-            config = loadConfig()
-            if (config.groups[chat]?.status === 'WAITING_GINFO') {
-                return conn.sendMessage(chat, { text: '#ginfo' })
-            }
+            await delay(getRandomDelay(3500, 5000))
+            return conn.sendMessage(chat, { text: '#ginfo' })
         } else {
             gConfig.status = 'WAITING_RW'
             gConfig.lastStateTime = Date.now()
             gConfig.lastSentRwTime = Date.now()
             saveConfig(config)
             
-            await delay(getRandomDelay(4000, 7000))
-            
-            config = loadConfig()
-            if (config.groups[chat]?.status === 'WAITING_RW') {
-                return conn.sendMessage(chat, { text: '#rw' })
-            }
+            await delay(getRandomDelay(3500, 5000))
+            return conn.sendMessage(chat, { text: '#rw' })
         }
     }
 }
 
-handler.help = ['autorw', 'autorw sync', 'autorw min <valor>', 'autorw off']
+handler.help = ['autorw sync [nombre]', 'autorw off']
 handler.tags = ['gacha']
 handler.command = ['autorw']
 

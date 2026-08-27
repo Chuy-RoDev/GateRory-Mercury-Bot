@@ -2,14 +2,18 @@ import { generateWAMessageFromContent } from '@whiskeysockets/baileys'
 import * as fs from 'fs'
 
 var handler = async (m, { conn, text, participants, isOwner, isAdmin }) => {
+    // Permitir uso si es Admin O si es Owner/Dev
+    if (!isAdmin && !isOwner) return conn.reply(m.chat, 'ꕤ Este comando solo lo pueden usar administradores o el creador del bot.', m)
+
     if (!m.quoted && !text) return conn.reply(m.chat, 'ꕤ Debes enviar un texto para hacer un tag.', m)
-    let mentionedJid = await m.mentionedJid
+    
+    let mentionedJid = m.mentionedJid || []
     let users = participants.map(u => conn.decodeJid(u.id))
     let htextos = text ? text : (m.quoted && m.quoted.text) ? m.quoted.text : "¡¡¡Hola!!!"
 
     if ((mentionedJid && mentionedJid.length) || (m.quoted && m.quoted.mentionedJid && m.quoted.mentionedJid.length)) {
         let copy = htextos
-        let list = mentionedJid || m.quoted.mentionedJid
+        let list = mentionedJid.length ? mentionedJid : m.quoted.mentionedJid
         for (let i = 0; i < list.length; i++) {
             let num = list[i].split('@')[0]
             copy = copy.replace(/@\S+/, '@' + num)
@@ -66,5 +70,4 @@ handler.help = ['hidetag']
 handler.tags = ['grupo']
 handler.command = ['hidetag', 'notificar', 'notify', 'tag', 'n']
 handler.group = true
-handler.admin = true
 export default handler

@@ -1,5 +1,5 @@
 let handler = async (m, { conn, text, usedPrefix, command }) => {
-    if (!text) return m.reply(`Uso: ${usedPrefix}${command} <nombre>\nEjemplo: ${usedPrefix}${command} Shiroko`)
+    if (!text) return m.reply(`Uso: ${usedPrefix}${command} <nombre>\nEjemplo: ${usedPrefix}${command} Still In Love`)
 
     const chatData = global.db.data.chats[m.chat]
     const anterior = chatData.botname || global.botname

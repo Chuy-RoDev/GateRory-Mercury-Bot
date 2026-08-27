@@ -15,7 +15,7 @@ import { spawn } from 'child_process'
 import readline from 'readline'
 import NodeCache from 'node-cache'
 import lodash from 'lodash'
-import { shirokoJadiBot } from './src/commands/sockets-serbot.js'
+import { roryJadiBot } from './src/commands/sockets-serbot.js'
 
 global.getProperName = async (conn, jid) => {
     try {
@@ -257,8 +257,8 @@ const raidTracker = new Map()
 global.reloadHandler = async function (restatConn) {
     try {
         const Handler = await import(`./src/Rory-Mercury.js?update=${Date.now()}`).catch(console.error)
-        if (Object.keys(Handler || {}).length) {
-            handler = Handler
+        if (Handler && Handler.handler) {
+        handler = Handler.handler 
             if (global.processedMessages) {
                 global.processedMessages.clear()
             }
@@ -278,7 +278,7 @@ global.reloadHandler = async function (restatConn) {
         conn.ev.off('creds.update', conn.credsUpdate)
         conn.ev.off('group-participants.update', conn.antiraidHandler)
     }
-    conn.handler = handler.handler.bind(global.conn)
+    conn.handler = handler.bind(global.conn)
     conn.connectionUpdate = connectionUpdate.bind(global.conn)
     conn.credsUpdate = saveCreds.bind(global.conn, true)
     if (!global.processedMessages) {
@@ -428,7 +428,7 @@ if (!methodCodeQR && !methodCode && !existsSync(credsFile)) {
         }
     } while (opcion !== '1' && opcion !== '2')
 }
-console.info = () => {}
+
 
 const connectionOptions = {
     logger: pino({ level: 'silent' }),
@@ -512,7 +512,8 @@ process.on('unhandledRejection', (reason, promise) => {
 })
 
 let isInit = true
-let handler = await import('./src/Rory-Mercury.js')
+const HandlerImport = await import('./src/Rory-Mercury.js')
+let handler = HandlerImport.handler
 
 _quickTest().catch(console.error)
 
@@ -531,8 +532,8 @@ if (global.shirokoJadibts) {
                 if (existsSync(creds)) {
                     setTimeout(async () => {
                         try {
-                            await shirokoJadiBot({
-                                pathshirokoJadiBot: botPath,
+                            await roryJadiBot({
+                             pathRoryJadiBot: botPath,
                                 m: { sender: gjbts + '@s.whatsapp.net', chat: gjbts + '@s.whatsapp.net' },
                                 conn: global.conn,
                                 args: [],

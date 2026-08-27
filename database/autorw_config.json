@@ -1,26 +1,95 @@
 {
   "minValor": 8000,
   "groups": {
-    "120363425869313503@g.us": {
+    "120363425869313503@g.us_59171018928": {
       "enabled": true,
       "status": "IDLE",
-      "targetBot": "152132338622498@lid",
-      "lastStateTime": 1787602342944,
-      "lastSentRwTime": 1787601081702
+      "lastStateTime": 1787794192728,
+      "lastSentGinfoTime": 1787794192728,
+      "lastSentRwTime": 1787790797733,
+      "botName": "Perez/Chuy",
+      "targetBot": "152132338622498@lid"
     },
-    "120363411539538413@g.us": {
+    "120363425869313503@g.us_5215656953441": {
       "enabled": true,
       "status": "IDLE",
-      "lastStateTime": 1787602268095,
-      "targetBot": "161783214010460@lid",
-      "lastSentRwTime": 1787602262284
+      "lastStateTime": 1787865231284,
+      "lastSentGinfoTime": 1787865231284,
+      "lastSentRwTime": 1787864708171,
+      "botName": "Perez/Chuy",
+      "targetBot": "152132338622498@lid"
     },
-    "120363410656251328@g.us": {
+    "120363425869313503@g.us_5218787011417": {
+      "enabled": true,
+      "status": "WAITING_GINFO",
+      "lastStateTime": 1787794192966,
+      "lastSentGinfoTime": 1787794192966,
+      "lastSentRwTime": 1787790797528,
+      "botName": "Perez/Chuy",
+      "targetBot": "152132338622498@lid"
+    },
+    "120363420819546616@g.us_5218787011417": {
+      "enabled": true,
+      "status": "WAITING_GINFO",
+      "lastStateTime": 1787794226971,
+      "lastSentGinfoTime": 1787794226971,
+      "lastSentRwTime": 1787790763246,
+      "botName": "Remy Etienne",
+      "targetBot": "268934259454148@lid"
+    },
+    "120363420819546616@g.us_59171018928": {
       "enabled": true,
       "status": "IDLE",
-      "lastStateTime": 1787602242641,
-      "targetBot": "161783214010460@lid",
-      "lastSentRwTime": 1787602236941
+      "lastStateTime": 1787794226711,
+      "lastSentGinfoTime": 1787794226711,
+      "lastSentRwTime": 1787790763230,
+      "botName": "Remy Etienne",
+      "targetBot": "268934259454148@lid"
+    },
+    "120363412456027557@g.us_5218787011417": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787790971655,
+      "lastSentGinfoTime": 1787790959452,
+      "lastSentRwTime": 1787790971655,
+      "botName": "Remy Etienne",
+      "targetBot": "161783214010460@lid"
+    },
+    "120363404688297973@g.us_59171018928": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787792992046,
+      "lastSentGinfoTime": 0,
+      "lastSentRwTime": 0,
+      "botName": "",
+      "targetBot": ""
+    },
+    "120363424662620595@g.us_5215656953441": {
+      "enabled": true,
+      "status": "IDLE",
+      "lastStateTime": 1787832893362,
+      "lastSentGinfoTime": 1787832882694,
+      "lastSentRwTime": 1787832893362,
+      "botName": "Perez/Chuy",
+      "targetBot": "39286636286022@lid"
+    },
+    "120363410104291512@g.us_5218787011417": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787793113243,
+      "lastSentGinfoTime": 0,
+      "lastSentRwTime": 0,
+      "botName": "",
+      "targetBot": ""
+    },
+    "165966663147557@lid_5215656953441": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787793187965,
+      "lastSentGinfoTime": 0,
+      "lastSentRwTime": 0,
+      "botName": "",
+      "targetBot": ""
     }
   }
 }

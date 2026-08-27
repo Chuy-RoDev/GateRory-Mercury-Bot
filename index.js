@@ -6,13 +6,14 @@ import cfonts from 'cfonts'
 import { createRequire } from 'module'
 import { fileURLToPath, pathToFileURL } from 'url'
 import { platform } from 'process'
-import fs, { existsSync, mkdirSync, readFileSync } from 'fs'
+import fs, { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from 'fs'
 import path, { join } from 'path'
 import yargs from 'yargs'
 import { Low, JSONFile } from 'lowdb'
 import lodash from 'lodash'
 import chalk from 'chalk'
-import { execSync, spawnSync } from 'child_process'
+import { execSync } from 'child_process'
+import { roryJadiBot } from './src/commands/sockets-serbot.js'
 
 const { chain } = lodash
 
@@ -29,20 +30,16 @@ global.__require = function require(dir = import.meta.url) {
 global.timestamp = { start: new Date() }
 const __dirname = global.__dirname(import.meta.url)
 
-// Leer args ANTES de todo para que --session esté disponible
 global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse())
 
-// ─── Soporte --session para múltiples instancias con PM2 ─────────
 const sessionArg = global.opts['session']
 if (sessionArg) {
     global.sessions = `Sessions/${sessionArg}`
 }
 
-// Convertir rutas a absolutas ANTES de que main.js las use
-global.sessions = path.resolve(__dirname, global.sessions)
-global.jadi     = path.resolve(__dirname, global.jadi)
+global.sessions = path.resolve(__dirname, global.sessions || 'Sessions')
+global.jadi     = path.resolve(__dirname, global.jadi || 'jadibts')
 
-// Si la sesión ya existe y es válida, saltar el menú interactivo
 const credsFile = join(global.sessions, 'creds.json')
 let sessionReady = false
 if (existsSync(credsFile)) {
@@ -71,9 +68,6 @@ console.log(chalk.hex('#00FFFF')('╔══════════════�
 console.log(chalk.hex('#00FFFF').bold('║   🖤 Rory Mercury - BOT  ║'))
 console.log(chalk.hex('#00FFFF')('╚══════════════════════════════╝'))
 
-// ─────────────────────────────────────────────────────────────
-// VERIFICACIÓN E INSTALACIÓN AUTOMÁTICA DE FFMPEG
-// ─────────────────────────────────────────────────────────────
 function verificarFFmpeg() {
   try {
     execSync('ffmpeg -version', { stdio: 'ignore' })
@@ -92,7 +86,6 @@ function asegurarFFmpeg() {
   console.log(chalk.yellow('⚠ ffmpeg no encontrado. Instalando automáticamente...'))
   try {
     execSync('sudo apt-get update -y && sudo apt-get install -y ffmpeg', { stdio: 'inherit' })
-    
     if (verificarFFmpeg()) {
       console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado correctamente'))
       return true
@@ -100,18 +93,13 @@ function asegurarFFmpeg() {
   } catch (e) {
     console.log(chalk.red('✗ Error durante la instalación de ffmpeg: ' + e.message))
   }
-  
   return false
 }
 
-// Ejecutar la verificación inmediatamente al iniciar
 asegurarFFmpeg()
-// ─────────────────────────────────────────────────────────────
 
 let prefixArray = Array.isArray(global.prefix) ? global.prefix : [global.prefix || ':']
-let escapedPrefix = prefixArray.map(p => {
-    return p.replace(/[|\\^$.*+?()[\]{}!]/g, '\\$&')
-}).join('|')
+let escapedPrefix = prefixArray.map(p => p.replace(/[|\\^$.*+?()[\]{}!]/g, '\\$&')).join('|')
 global.prefix = new RegExp(`^(${escapedPrefix})`)
 
 const databaseDir = join(__dirname, 'src/database')
@@ -119,7 +107,6 @@ if (!existsSync(databaseDir)) {
     mkdirSync(databaseDir, { recursive: true })
 }
 
-// Base de datos COMPARTIDA — mismo archivo sin importar la sesión
 global.db = new Low(
     /https?:\/\//.test(global.opts['db'] || '') ?
     new cloudDBAdapter(global.opts['db']) :
@@ -159,4 +146,34 @@ global.loadDatabase = async function loadDatabase() {
 loadDatabase().then(() => {
     import('./main.js').catch(console.error)
     console.log(chalk.hex('#00FFFF')('✓ Base de datos cargada correctamente'))
+
+    // Reconexión de Sub-Bots en segundo plano al iniciar
+    global.rutaJadiBot = join(__dirname, `./${global.jadi}`)
+    if (existsSync(global.rutaJadiBot)) {
+        const readRutaJadiBot = readdirSync(global.rutaJadiBot)
+        if (readRutaJadiBot.length > 0) {
+            console.log(chalk.rgb(180, 20, 20)(`→ Detectadas ${readRutaJadiBot.length} sesiones Sub-Bot. Reconectando...`))
+            for (const gjbts of readRutaJadiBot) {
+                const botPath = join(global.rutaJadiBot, gjbts)
+                if (existsSync(botPath) && statSync(botPath).isDirectory()) {
+                    const creds = join(botPath, 'creds.json')
+                    if (existsSync(creds)) {
+                        setTimeout(async () => {
+                            try {
+                                await roryJadiBot({
+                                    pathSubBot: botPath,
+                                    m: { sender: gjbts + '@s.whatsapp.net', chat: gjbts + '@s.whatsapp.net' },
+                                    conn: global.conn,
+                                    args: [],
+                                    usedPrefix: '/',
+                                    command: 'qr',
+                                    fromCommand: false
+                                })
+                            } catch (e) {}
+                        }, 10000)
+                    }
+                }
+            }
+        }
+    }
 }).catch(console.error)

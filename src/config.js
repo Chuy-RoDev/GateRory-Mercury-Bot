@@ -16,7 +16,7 @@ global.mes = d.toLocaleDateString('es', { month: 'long' })
 global.tiempo = d.toLocaleString('en-US', { hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true })
 
 // ─────────────────────────────
-//  SISTEMA DE SESIÓN DINÁMICA (FIX RUTAS)
+//  SISTEMA DE SESIÓN DINÁMICA
 // ─────────────────────────────
 const sessionArgIndex = process.argv.indexOf('--session')
 const sessionName = sessionArgIndex !== -1 ? process.argv[sessionArgIndex + 1] : "Principal"
@@ -32,8 +32,15 @@ if (!fs.existsSync(`./${global.sessions}`)) {
 //  CONFIGURACIÓN PRINCIPAL
 // ─────────────────────────────
 global.botNumber = ""
-global.owner = ["573114910796", "573237649689", "819095203873", "584142921488"]
-global.suittag = ["+584142921488"]
+global.owner = [
+  "573114910796",
+  "573237649689",
+  "819095203873",
+  "584142921488",
+  "525656953441",       //
+  "85882736517135"     //
+]
+global.suittag = ["525656953441"]
 global.prems = []
 global.prefix = [":", "💙", "/"]
 global.libreria = "Multi Device"
@@ -79,7 +86,7 @@ global.welcomeConfig = {
 //  REDES SOCIALES
 // ─────────────────────────────
 global.canalNombre = "✰ 𝗠𝗶𝗱𝗻𝗶𝗴𝗵𝘁 𝗦𝗼𝗰𝗶𝗲𝘁𝘆 - 𝗢𝗳𝗶𝗰𝗶𝗮𝗹 𝗖𝗵𝗮𝗻𝗻𝗲𝗹"
-global.group = "https://chat.whatsapp.com/IvoOUwblfUhLPGTO4uN1z2node index.js -- --session Chuy"
+global.group = "https://chat.whatsapp.com/IvoOUwblfUhLPGTO4uN1z2"
 global.channel = ""
 global.github = "https://github.com/Arlette-Xz/Shiroko-Bot"
 global.gmail = "arlette.x7z@gmail.com"

@@ -1,13 +1,6 @@
 /**
- * 🕵️ PROTOCOLO DE CONTRAINTELIGENCIA: EL IMPOSTOR v6.0 (EXPANSIÓN MASIVA Y VOTACIÓN POR ID)
- * Arquitectura: Shiroko-Bot | Sistema de Economía: global.db.data.users
- * * ACTUALIZACIÓN CRÍTICA:
- * - Votación mediante IDs numéricas (1, 2, 3...) para evitar errores de escritura.
- * - Límite estricto de 9 operativos.
- * - Base de datos expandida masivamente (Nuevas categorías y decenas de personajes).
+ * Ni CAGANDO LOGRO HACER ESTO SIN IA XDDDDDDDDDDDDD. Es 80/20, 80% Ia 20% modificado por mi asdasjdasjdkasdj
  */
-
-import { smsg } from '../../lib/simple.js'
 
 const bancoDeDatos = {
     'Genshin Impact': [
@@ -50,7 +43,7 @@ const bancoDeDatos = {
         { palabra: 'Nekomata', pista: 'Gata callejera que ataca por la espalda y ama el pescado.' }
     ],
     'Blue Archive': [
-        { palabra: 'Shiroko', pista: 'Una alumna de armas tomar que no teme asaltar un banco.' },
+        { palabra: 'Azusa', pista: 'Una estudiante seria que busca derrotar al mal a toda costa.' },
         { palabra: 'Hoshino', pista: 'Le gusta dormir en cualquier lado y se hace llamar "tío".' },
         { palabra: 'Yuuka', pista: 'La tesorera que te regaña por gastar dinero en figuras.' },
         { palabra: 'Aris', pista: 'Una heroína de videojuegos que dispara luz con un cañón enorme.' },
@@ -101,17 +94,26 @@ const bancoDeDatos = {
 
 global.impostorGame = global.impostorGame || {};
 
+// Función auxiliar para garantizar la existencia de la cuenta de usuario en la BD
+const initUser = (id) => {
+    if (!global.db.data.users[id]) global.db.data.users[id] = {};
+    if (typeof global.db.data.users[id].coin !== 'number') global.db.data.users[id].coin = 0;
+};
+
 let handler = async (m, { conn, usedPrefix, command }) => {
     const chat = m.chat;
     if (global.impostorGame[chat]) return m.reply('`[!] Operación activa en este sector.` 🛡️');
 
-    let mentionedJid = await m.mentionedJid;
-    let targets = mentionedJid && mentionedJid.length ? mentionedJid : (m.quoted && m.quoted.sender ? [m.quoted.sender] : []);
+    let mentionedJid = m.mentionedJid || [];
+    let targets = mentionedJid.length ? mentionedJid : (m.quoted && m.quoted.sender ? [m.quoted.sender] : []);
     const allPlayers = [...new Set([m.sender, ...targets])].slice(0, 9);
 
     if (allPlayers.length < 3) {
         return conn.reply(chat, `*｢ 📂 ERROR DE PROTOCOLO ｣*\n\nSe requieren al menos 3 operativos (Máx 9).\n\n> _Usa:_ *${usedPrefix}${command} @user1 @user2*`, m);
     }
+
+    // Inicializar cuentas en base de datos
+    allPlayers.forEach(id => initUser(id));
 
     global.impostorGame[chat] = {
         state: 'ACCEPTANCE',
@@ -119,7 +121,6 @@ let handler = async (m, { conn, usedPrefix, command }) => {
             id, 
             index: index + 1,
             accepted: false, 
-            warnings: 0,
             name: global.db.data.users[id]?.name || id.split('@')[0].trim()
         })),
         impostor: null,
@@ -155,14 +156,19 @@ handler.before = async function (m, { conn }) {
     const game = global.impostorGame[chat];
     const user = global.db.data.users;
     const sender = m.sender;
+    const text = (m.text || '').trim();
+    const textLC = text.toLowerCase();
 
+    // Manejo de PM (Compra de pistas en privado)
     if (!m.isGroup) {
         const activeChat = Object.keys(global.impostorGame).find(id => 
             global.impostorGame[id].impostor === sender && global.impostorGame[id].state === 'PLAYING'
         );
         
-        if (activeChat && (m.text.toLowerCase().includes('pista') || m.text.toLowerCase().includes('ayuda'))) {
+        if (activeChat && (textLC.includes('pista') || textLC.includes('ayuda'))) {
             const g = global.impostorGame[activeChat];
+            initUser(sender);
+            
             if (user[sender].coin < g.pistaCosto) return m.reply('`[-] Fondos insuficientes. Requieres $100,000.`');
             if (g.pistaComprada) return m.reply('`[!] Filtración ya agotada.`');
             
@@ -179,7 +185,8 @@ handler.before = async function (m, { conn }) {
     const isPlayer = game.players.find(p => p.id === sender);
     if (!isPlayer) return;
 
-    if (game.state === 'ACCEPTANCE' && m.text.toLowerCase() === 'aceptar') {
+    // Fase de Aceptación
+    if (game.state === 'ACCEPTANCE' && textLC === 'aceptar') {
         if (isPlayer.accepted) return;
         isPlayer.accepted = true;
         const faltan = game.players.filter(p => !p.accepted).length;
@@ -207,15 +214,19 @@ handler.before = async function (m, { conn }) {
             }
 
             game.state = 'PLAYING';
-            game.turn = game.players[Math.floor(Math.random() * game.players.length)].id;
-            game.lastTurn = game.turn;
+            const firstPlayer = game.players[Math.floor(Math.random() * game.players.length)].id;
+            game.turn = firstPlayer;
+            game.lastTurn = firstPlayer;
             
-            return conn.reply(chat, `*｢ ⚔️ MISION INICIADA ｣*\n\nLos roles y datos han sido enviados por privado. No revelen nada en este chat.\n\nTurno de: @${game.turn.split('@')[0]}\n> _Responde a este mensaje con tu descripción._`, m, { mentions: [game.turn] });
+            return conn.reply(chat, `*｢ ⚔️ MISIÓN INICIADA ｣*\n\nLos roles y datos han sido enviados por privado. No revelen nada en este chat.\n\nTurno de: @${game.turn.split('@')[0]}\n> _Responde al mensaje del bot con tu descripción._`, m, { mentions: [game.turn] });
         }
     }
 
+    // Fase de Juego
     if (game.state === 'PLAYING') {
-        if (sender === game.impostor && m.text.toLowerCase().includes(game.word.toLowerCase())) {
+        // Victoria anticipada del impostor al descubrir la palabra
+        if (sender === game.impostor && textLC.includes(game.word.toLowerCase())) {
+            initUser(sender);
             user[sender].coin += game.bet;
             await conn.reply(chat, `*｢ 🌑 OPERACIÓN FALLIDA ｣*\n\nEl impostor @${sender.split('@')[0]} ha descubierto la palabra: *${game.word}*.\n\nSe retira con $${game.bet.toLocaleString()}.`, m, { mentions: [sender] });
             delete global.impostorGame[chat];
@@ -232,16 +243,19 @@ handler.before = async function (m, { conn }) {
                 return conn.reply(chat, `*｢ ⚖️ JUICIO FINAL ｣*\n\nEl tiempo de hablar terminó. Respondan con el *NÚMERO* del traidor:\n\n${listV}`, m, { mentions: game.players.map(p => p.id) });
             }
 
-            let next;
-            do { next = game.players[Math.floor(Math.random() * game.players.length)].id; } while (next === game.lastTurn);
+            // Selección segura del siguiente turno evitando bucles infinitos
+            const candidatos = game.players.filter(p => p.id !== game.lastTurn);
+            const next = candidatos.length ? candidatos[Math.floor(Math.random() * candidatos.length)].id : game.players[0].id;
+            
             game.turn = next;
             game.lastTurn = next;
             return conn.reply(chat, `*RONDA ${game.currentRound + 1}/${game.rounds}*\nTurno de: @${next.split('@')[0]}`, m, { mentions: [next] });
         }
     }
 
+    // Fase de Votación
     if (game.state === 'VOTING') {
-        const voteIndex = parseInt(m.text.trim());
+        const voteIndex = parseInt(text);
         const voteTarget = game.players.find(p => p.index === voteIndex);
         
         if (voteTarget) {
@@ -258,6 +272,7 @@ handler.before = async function (m, { conn }) {
                     game.state = 'RISK';
                     await conn.reply(chat, `*｢ 🛡️ TRAIDOR IDENTIFICADO ｣*\n\n@${expulsadoId.split('@')[0]}, última oportunidad: Escribe la palabra exacta ahora.`, m, { mentions: [expulsadoId] });
                 } else {
+                    initUser(game.impostor);
                     const winAmt = game.bet + game.jackpot;
                     user[game.impostor].coin += winAmt;
                     await conn.reply(chat, `*｢ 🌑 ERROR DE LA UNIDAD ｣*\n\n@${expulsadoId.split('@')[0]} era inocente. El traidor era @${game.impostor.split('@')[0]}.\n\nBotín: $${winAmt.toLocaleString()}.`, m, { mentions: [expulsadoId, game.impostor] });
@@ -269,21 +284,27 @@ handler.before = async function (m, { conn }) {
         }
     }
 
+    // Fase de Última Oportunidad (Riesgo)
     if (game.state === 'RISK' && sender === game.impostor) {
-        if (m.text.toLowerCase() === game.word.toLowerCase()) {
-            await conn.reply(chat, `*｢ 🌑 ESCAPE EXITOSO ｣*\n\nAdivinó la palabra: *${game.word}*.`, m);
+        initUser(sender);
+        if (textLC === game.word.toLowerCase()) {
+            user[sender].coin += game.bet;
+            await conn.reply(chat, `*｢ 🌑 ESCAPE EXITOSO ｣*\n\nAdivinó la palabra: *${game.word}*. Se retira con su recompensa.`, m);
         } else {
-            user[sender].coin -= game.bet;
+            user[sender].coin = Math.max(0, user[sender].coin - game.bet);
             const rew = Math.floor((game.bet + game.jackpot) / (game.players.length - 1));
-            game.players.filter(p => p.id !== game.impostor).forEach(p => user[p.id].coin += rew);
-            await conn.reply(chat, `*｢ 🛡️ SENTENCIA ｣*\n\nIncorrecto. La palabra era: *${game.word}*.\nMulta cobrada y repartida.`, m);
+            game.players.filter(p => p.id !== game.impostor).forEach(p => {
+                initUser(p.id);
+                user[p.id].coin += rew;
+            });
+            await conn.reply(chat, `*｢ 🛡️ SENTENCIA ｣*\n\nIncorrecto. La palabra era: *${game.word}*.\nMulta cobrada y repartida entre los inocentes.`, m);
         }
         delete global.impostorGame[chat];
     }
 };
 
 handler.help = ['impostor']
-handler.tags = ['tools']
+handler.tags = ['games']
 handler.command = ['impostor', 'traidor']
 handler.group = true
 

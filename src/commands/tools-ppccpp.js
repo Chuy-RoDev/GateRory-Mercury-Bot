@@ -2,7 +2,7 @@ import fs from 'fs'
 import axios from 'axios'
 
 // RUTA ESPECÍFICA EN LA CARPETA JSON
-const jsonPath = '/home/jesuslamus1314/Shiroko-Bot/src/json/ppcp_data.json'
+const jsonPath = '/home/ninegamer982/GateRory-Mercury-Bot/src/json/ppcp_data.json'
 
 let handler = async (m, { conn, usedPrefix, command, text }) => {
     const admin = '584142921488@s.whatsapp.net'
@@ -69,7 +69,7 @@ let handler = async (m, { conn, usedPrefix, command, text }) => {
 }
 
 handler.before = async (m, { conn }) => {
-    const admin = '584142921488@s.whatsapp.net'
+    const admin = '525656953441@s.whatsapp.net'
     if (m.sender !== admin || !m.quoted || !m.text || m.text.toLowerCase().trim() !== 'aceptar') return false
     if (!m.quoted.text.includes('REVISIÓN DE ENLACES')) return false
 

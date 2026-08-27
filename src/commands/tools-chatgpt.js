@@ -8,6 +8,9 @@ let handler = async (m, { conn, text, usedPrefix, command, participants, isPrems
     const chatId = m.chat
     const isGroup = m.isGroup
     
+    // Nombre dinámico del bot (fallback a Rory Mercury)
+    const botname = global.botname || 'Rory Mercury'
+
     if (!chatMemory[chatId]) chatMemory[chatId] = { history: [], lastInteraction: Date.now() }
     const memory = chatMemory[chatId]
     const now = Date.now()
@@ -17,26 +20,31 @@ let handler = async (m, { conn, text, usedPrefix, command, participants, isPrems
 
     if (text === 'reset' || text === 'borrar') {
         memory.history = []
-        return conn.reply(m.chat, '✅ Memoria reiniciada.', m)
+        return conn.reply(m.chat, '🖤 Memoria de conversación reiniciada.', m)
     }
 
-    if (!text) return conn.reply(m.chat, `Hola, soy Shiroko. 🛠️\n¿En qué puedo ayudarte hoy?`, m)
+    const userName = m.pushName || 'mortal'
+
+    if (!text) return conn.reply(m.chat, `*¿Buscabas algo, ${userName}?* 🖤\nSoy *${botname}*, apóstol de Emroy. Dime qué quieres saber hoy o usa *reset* para borrar el historial.`, m)
 
     try {
-        await m.react('🛠️')
+        await m.react('🩸')
 
-        const userName = m.pushName || 'Usuario'
+        // Contexto de grupo y rol
+        const isAdmin = isGroup ? participants.some(p => p.id === m.sender && (p.admin === 'admin' || p.admin === 'superadmin')) : false
+        const role = isAdmin ? 'ADMIN' : (isPrems ? 'PREMIUM' : 'MIEMBRO')
 
-        // PERSONALIDAD EQUILIBRADA: Útil, activa y con pocos emojis
-        const shirokoPrompt = `Tu nombre es Shiroko, estudiante de Abydos. Eres amable, eficiente y directa. Tu objetivo es ayudar al usuario (${userName}) con respuestas claras y completas. IMPORTANTE: No uses más de uno o dos emojis en toda tu respuesta. Mantén un tono profesional pero cercano.`
+        // Personalidad de Rory Mercury (GATE)
+        const roryPrompt = `Tu nombre es ${botname}, una apóstol del dios Emroy (diosa de la guerra y la muerte) inspirada en Rory Mercury del anime GATE. Eres coqueta, un poco gótica, confiada, sarcástica pero siempre útil con el usuario (${userName}, rol: ${role}). Responde de forma directa, inteligente y con un toque de superioridad juguetona. IMPORTANTE: Usa máximo 1 o 2 emojis por mensaje.`
 
+        // API Principal
         try {
             const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: "google/gemini-2.0-flash-001", 
-                    q: `${shirokoPrompt}\n\nPregunta: ${text}`,
+                    q: `${roryPrompt}\n\nPregunta: ${text}`,
                     history: memory.history 
                 })
             })
@@ -44,21 +52,21 @@ let handler = async (m, { conn, text, usedPrefix, command, participants, isPrems
             const res = await response.json()
 
             if (res.status && res.reply) {
-                memory.history = res.history
+                memory.history = res.history || []
                 if (memory.history.length > 15) memory.history = memory.history.slice(-15)
 
                 await m.react('✅')
                 return await conn.sendMessage(m.chat, { text: res.reply.trim() }, { quoted: m })
             }
         } catch (apiError) {
-            console.log("Error en API principal.")
+            console.log("Error en API principal, intentando backups...")
         }
 
-        // BACKUPS (Siguiendo la regla de pocos emojis)
+        // Backups de contingencia
         const backups = [
-            `https://api.vreden.web.id/api/ai/gpt4?prompt=${encodeURIComponent(shirokoPrompt)}&query=${encodeURIComponent(text)}`,
-            `https://api.deliriusapi.com/ia/gptweb?text=${encodeURIComponent(shirokoPrompt + " " + text)}`,
-            `https://widipe.com/prompt/gpt-4o?prompt=${encodeURIComponent(shirokoPrompt)}&text=${encodeURIComponent(text)}`
+            `https://api.vreden.web.id/api/ai/gpt4?prompt=${encodeURIComponent(roryPrompt)}&query=${encodeURIComponent(text)}`,
+            `https://api.deliriusapi.com/ia/gptweb?text=${encodeURIComponent(roryPrompt + " " + text)}`,
+            `https://widipe.com/prompt/gpt-4o?prompt=${encodeURIComponent(roryPrompt)}&text=${encodeURIComponent(text)}`
         ]
 
         let backupText = null
@@ -80,13 +88,12 @@ let handler = async (m, { conn, text, usedPrefix, command, participants, isPrems
 
     } catch (error) {
         await m.react('❌')
-        conn.reply(m.chat, `Lo siento, hubo un problema técnico. ¿Podemos intentarlo de nuevo? 🛠️`, m)
+        conn.reply(m.chat, `*Vaya... parece que algo falló.* 🖤\nOcurrió un error técnico al procesar tu petición.`, m)
     }
 }
 
-handler.command = ['gemini', 'ia', 'chatgpt', 'shiroko']
+handler.command = ['gemini', 'ia', 'chatgpt', 'rory']
 handler.help = ['ia']
 handler.tags = ['ai']
-handler.group = true
 
 export default handler

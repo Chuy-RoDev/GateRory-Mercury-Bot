@@ -5,15 +5,15 @@ const API_BASE_URL = "https://rest.apicausas.xyz/api/v1/nsfw/descargas/rule34";
 const API_KEY = "causa-ee5ee31dcfc79da4";
 
 const handler = async (m, { conn, args, usedPrefix, command }) => {
-    // 1. Verificación de NSFW con juicio de Shiroko
+    // 1. Verificación de NSFW
     const chat = global.db.data.chats[m.chat];
     if (m.isGroup && !chat?.nsfw) {
         return m.reply(`El NSFW está deshabilitado... ¿Realmente quieres hacer esto?..\n> Un administrador debe activarlo con: *${usedPrefix}nsfw on*`);
     }
 
-    // 2. Validación de Argumentos (Comando vacío con rivalidad)
+    // 2. Validación de Argumentos
     if (!args[0]) {
-        return m.reply(`Esto... ¿Realmente quieres que haga esto?... *Pervertido.*\n\n> *Ejemplo:* (Mika Misono... ugh)\n> Si quieres que sea un vídeo ponlo al final...\n*${usedPrefix + command} mika_misono video*`);
+        return m.reply(`Esto... ¿Realmente quieres que haga esto?... *Pervertido.*\n\n> *Ejemplo:*\n*${usedPrefix + command} mika_misono*`);
     }
 
     const tags = args.join(', ');
@@ -33,25 +33,42 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
 
         const results = json.data.results;
         
-        // --- CAMBIO PARA MANDAR HASTA 10 RESULTADOS ---
-        const medias = [];
-        const maxResults = Math.min(results.length, 10);
+        // --- SEPARACIÓN: HASTA 5 IMÁGENES Y 5 VÍDEOS ---
+        const images = [];
+        const videos = [];
 
-        for (let i = 0; i < maxResults; i++) {
-            const post = results[i];
+        for (const post of results) {
             const fileUrl = post.file_url;
+            if (!fileUrl) continue;
+
             const type = post.type ? post.type.toLowerCase() : fileUrl.split('.').pop().toLowerCase();
             const isVideo = ['mp4', 'webm', 'mov', 'gif'].includes(type);
 
-            medias.push({
+            const mediaObj = {
                 type: isVideo ? 'video' : 'image',
                 data: { url: fileUrl }
-            });
+            };
+
+            if (isVideo && videos.length < 5) {
+                videos.push(mediaObj);
+            } else if (!isVideo && images.length < 5) {
+                images.push(mediaObj);
+            }
+
+            // Si ya se juntaron 5 de cada tipo, detener la búsqueda
+            if (images.length === 5 && videos.length === 5) break;
         }
 
-        const caption = `Encontré estos ${medias.length} resultados para: *${tags}*... *Pervertido.*`;
+        const medias = [...images, ...videos];
 
-        // 4. Envío grupal usando la lógica de Sylphy (evita el error de tmp)
+        if (medias.length === 0) {
+            await m.react('❌');
+            return m.reply(`*Cero archivos válidos encontrados.* 🦈`);
+        }
+
+        const caption = `Encontré *${images.length} imágenes* y *${videos.length} vídeos* para: *${tags}*... *Pervertido.*`;
+
+        // 4. Envío de medios
         await conn.sendSylphy(m.chat, medias, { caption, quoted: m });
 
         await m.react('✔️');

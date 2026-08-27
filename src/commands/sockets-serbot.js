@@ -1,8 +1,3 @@
-// SHIROKO-BOT
-// =========================
-// Desarrolladora: Arlette Xz (GitHub: Arlette-Xz)
-// =========================
-
 import { 
     useMultiFileAuthState, 
     DisconnectReason, 
@@ -22,72 +17,103 @@ import { Boom } from '@hapi/boom'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-let rtx = '✿ `Vincula tu cuenta usando el QR.`\n\n'
-rtx += '[ ✰ ] Instrucciones:\n'
-rtx += '*1 » Opciones adicionales*\n'
-rtx += '*2 » Dispositivos vinculados*\n'
-rtx += '*3 » Vincular nuevo dispositivo*\n'
-rtx += '*4 » Escanear código QR*\n\n'
-rtx += '> *Nota:* Código válido por 30 segundos'
-
-let rtx2 = '✿ `Vincula tu cuenta usando el código.`\n\n'
-rtx2 += '[ ✰ ] Instrucciones:\n'
-rtx2 += '*1 » Opciones adicionales*\n'
-rtx2 += '*2 » Dispositivos vinculados*\n'
-rtx2 += '*3 » Vincular nuevo dispositivo*\n'
-rtx2 += '*4 » Vincular usando número*\n\n'
-rtx2 += '> *Nota:* Código exclusivo para este número'
-
-if (!(global.conns instanceof Array)) global.conns = []
+if (!Array.isArray(global.conns)) global.conns = []
 if (!global.isSent) global.isSent = {}
 
-// ── SOLICITUDES PENDIENTES DE APROBACIÓN ────────────────────
-// { chatId_userId: { options, expiresAt } }
-const pendingApprovals = new Map()
-const APPROVAL_TTL = 5 * 60 * 1000 // 5 minutos para aceptar
+const JADI_FOLDER = global.jadi || 'jadibts'
+
+const rtxQR = `✿ \`Vincula tu cuenta usando el código QR.\`
+
+[ ✰ ] *Instrucciones:*
+1 » Abre WhatsApp en tu dispositivo
+2 » Ve a *Dispositivos vinculados*
+3 » Toca en *Vincular un dispositivo*
+4 » Escanea este código QR
+
+> *Nota:* Este código expira en 30 segundos.`
+
+const rtxCode = `✿ \`Vincula tu cuenta usando el código de 8 dígitos.\`
+
+[ ✰ ] *Instrucciones:*
+1 » Ve a *Dispositivos vinculados* en tu WhatsApp
+2 » Toca en *Vincular un dispositivo*
+3 » Selecciona *Vincular con el número de teléfono*
+4 » Ingresa el código enviado a continuación`
 
 function msToTime(duration) {
-    var seconds = Math.floor((duration / 1000) % 60),
-        minutes = Math.floor((duration / (1000 * 60)) % 60)
-    return `${minutes} m y ${seconds} s`
+    const seconds = Math.floor((duration / 1000) % 60)
+    const minutes = Math.floor((duration / (1000 * 60)) % 60)
+    return `${minutes}m y ${seconds}s`
+}
+
+async function resolveRealJid(conn, chat, sender) {
+    if (!sender) return ''
+    if (!sender.includes('@lid')) return sender
+    try {
+        const meta = await conn.groupMetadata(chat).catch(() => null)
+        if (meta) {
+            const participant = meta.participants.find(p => 
+                p.lid === sender || p.lid?.split('@')[0] === sender.split('@')[0]
+            )
+            if (participant?.id) return participant.id
+        }
+    } catch {}
+    return sender
 }
 
 function cleanInactiveSessions() {
-    const sessionPath = path.join(`./${global.jadi}/`)
+    const sessionPath = path.resolve(`./${JADI_FOLDER}/`)
     if (!fs.existsSync(sessionPath)) return
-    const files = fs.readdirSync(sessionPath)
-    const now = Date.now()
-    const oneDay = 24 * 60 * 60 * 1000
-    files.forEach(file => {
-        const filePath = path.join(sessionPath, file)
-        const stats = fs.statSync(filePath)
-        if (now - stats.mtimeMs > oneDay) {
-            fs.rmSync(filePath, { recursive: true, force: true })
-            console.log(chalk.yellow(`[ LIMPIEZA ] Sesión inactiva eliminada: ${file}`))
-        }
-    })
+    
+    try {
+        const files = fs.readdirSync(sessionPath)
+        const now = Date.now()
+        const oneDay = 24 * 60 * 60 * 1000
+
+        files.forEach(file => {
+            const filePath = path.join(sessionPath, file)
+            const credsFile = path.join(filePath, 'creds.json')
+            const targetPath = fs.existsSync(credsFile) ? credsFile : filePath
+            const stats = fs.statSync(targetPath)
+
+            if (now - stats.mtimeMs > oneDay) {
+                fs.rmSync(filePath, { recursive: true, force: true })
+                console.log(chalk.yellow(`[ SUB-BOT ] Sesión inactiva eliminada: ${file}`))
+            }
+        })
+    } catch (err) {
+        console.error(chalk.red('[ SUB-BOT ERROR ] Error en limpieza de sesiones:'), err)
+    }
 }
 
-export async function shirokoJadiBot(options) {
-    let { pathshirokoJadiBot, m, conn, args, usedPrefix, command, fromCommand } = options
-    const mcode = (command === 'code' || (args && args.includes('--code')))
-    const userId = m?.sender ? m.sender.split`@`[0] : path.basename(pathshirokoJadiBot)
+export async function roryJadiBot(options) {
+    const { pathSubBot, pathshirokoJadiBot, m, conn, args, usedPrefix, command, fromCommand } = options
+    const sessionPath = pathSubBot || pathshirokoJadiBot || options.pathRoryJadiBot
+    const mcode = command === 'code' || (args && args.includes('--code'))
+    
+    const realSender = await resolveRealJid(conn, m?.chat, m?.sender)
+    const senderNum = realSender ? realSender.split('@')[0].replace(/[^0-9]/g, '') : ''
+    const userId = options.args?.[0]?.replace(/[^0-9]/g, '') || (senderNum.length > 13 ? "525656953441" : senderNum) || path.basename(sessionPath)
 
-    if (global.conns[userId]?.sock) {
-        try { global.conns[userId].sock.ws.close() } catch {}
+    const existingIdx = global.conns.findIndex(c => c?.subId === userId)
+    if (existingIdx !== -1) {
+        try {
+            global.conns[existingIdx]?.sock?.ws?.close()
+        } catch {}
+        global.conns.splice(existingIdx, 1)
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState(pathshirokoJadiBot)
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath)
     const { version } = await fetchLatestBaileysVersion()
 
     const connectionOptions = {
-        logger: pino({ level: "silent" }),
+        logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
         auth: {
             creds: state.creds,
             keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' }))
         },
-        browser: ["Windows", "Chrome", "120.0.0.0"],
+        browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
         version,
         markOnlineOnConnect: false,
         syncFullHistory: false,
@@ -99,173 +125,180 @@ export async function shirokoJadiBot(options) {
     let sock = makeWASocket(connectionOptions)
     let startTime = Math.floor(Date.now() / 1000)
     sock.isInit = false
+    sock.subId = userId
+
+    let pairingRequested = false
 
     async function connectionUpdate(update) {
         const { connection, lastDisconnect, qr } = update
 
         if (qr && fromCommand && !global.isSent[userId]) {
-            global.isSent[userId] = true
             if (mcode) {
-                setTimeout(async () => {
-                    try {
-                        let secret = await sock.requestPairingCode(userId)
-                        secret = secret.match(/.{1,4}/g)?.join("-")
-                        await conn.sendMessage(m.chat, { text: rtx2 }, { quoted: m })
-                        await conn.sendMessage(m.chat, { text: secret }, { quoted: m })
-                    } catch (e) { global.isSent[userId] = false }
-                }, 3000)
+                if (!pairingRequested) {
+                    pairingRequested = true
+                    setTimeout(async () => {
+                        try {
+                            let code = await sock.requestPairingCode(userId)
+                            code = code?.match(/.{1,4}/g)?.join('-') || code
+                            
+                            global.isSent[userId] = true
+                            await conn.sendMessage(m.chat, { text: rtxCode }, { quoted: m })
+                            await conn.sendMessage(m.chat, { text: `*${code}*` }, { quoted: m })
+                        } catch (e) {
+                            console.error('[ SUB-BOT ERROR ] Error generando Pairing Code:', e)
+                            global.isSent[userId] = false
+                            pairingRequested = false
+                        }
+                    }, 2500)
+                }
             } else {
                 try {
+                    global.isSent[userId] = true
+                    const qrBuffer = await qrcode.toBuffer(qr, { scale: 8 })
                     await conn.sendMessage(m.chat, {
-                        image: await qrcode.toBuffer(qr, { scale: 8 }),
-                        caption: rtx
+                        image: qrBuffer,
+                        caption: rtxQR
                     }, { quoted: m })
-                } catch (e) { global.isSent[userId] = false }
+                } catch (e) {
+                    console.error('[ SUB-BOT ERROR ] Error enviando QR:', e)
+                    global.isSent[userId] = false
+                }
             }
         }
 
-        if (connection === 'open') {
-            sock.isInit = true
-            global.isSent[userId] = true
-            const user = sock.user.id.split(':')[0]
+       if (connection === 'open') {
+        sock.isInit = true
+          global.isSent[userId] = true
+            const subUserJid = sock.user.id.split(':')[0]
+            const botName = sock.user.name || sock.user.verifiedName || 'Bot'
 
-            global.conns[userId] = { sock, retries: 0 }
-            if (!global.conns.some(s => s.user && s.user.id.split(':')[0] === user)) {
-                global.conns.push(sock)
-            }
-
-            console.log(chalk.hex('#00FFFF')(`\n[ SUB-BOT ] `) + chalk.hex('#FFFFFF')(`+${user} Conectado correctamente.`))
+            global.conns.push({ sock, subId: userId, jid: subUserJid, name: botName, uptime: Date.now() })
+            console.log(chalk.hex('#00FFFF')(`\n[ SUB-BOT ] `) + chalk.hex('#FFFFFF')(`+${subUserJid} Conectado correctamente.`))
 
             if (fromCommand && m && m.chat) {
+                const botname = global.botname || 'Rory Mercury'
                 await conn.sendMessage(m.chat, {
-                    text: `❀ Has registrado un nuevo *Sub-Bot!* [@${userId}]\n\n> Puedes ver la información del bot usando el comando *${usedPrefix}infobot*`,
+                    text: `❀ ¡Sub-Bot registrado con éxito!\n\n*Usuario:* @${userId}\n*Bot:* ${botname}\n\n> Usa el comando *${usedPrefix}infobot* para ver los detalles.`,
                     mentions: [m.sender]
                 }, { quoted: m })
             }
         }
 
         if (connection === 'close') {
-            const reason = new Boom(lastDisconnect?.error)?.output?.statusCode
+            const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode
+            const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403
 
-            if (reason === DisconnectReason.loggedOut || reason === 401) {
-                try {
-                    sock.ws.close()
-                    sock.ev.removeAllListeners()
-                    if (fs.existsSync(pathshirokoJadiBot)) {
-                        fs.rmSync(pathshirokoJadiBot, { recursive: true, force: true })
-                    }
-                } catch (e) {}
-                delete global.isSent[userId]
-                delete global.conns[userId]
+            try {
+                sock.ev.removeAllListeners()
+                sock.ws?.close()
+            } catch {}
+
+            const idx = global.conns.findIndex(c => c?.subId === userId || c?.sock === sock)
+            if (idx !== -1) global.conns.splice(idx, 1)
+
+            delete global.isSent[userId]
+
+            if (isLoggedOut) {
+                console.log(chalk.red(`[ SUB-BOT ] Sesión de +${userId} desvinculada.`))
+                if (fs.existsSync(sessionPath)) {
+                    fs.rmSync(sessionPath, { recursive: true, force: true })
+                }
             } else {
-                setTimeout(() => shirokoJadiBot(options), 15000)
+                console.log(chalk.yellow(`[ SUB-BOT ] Reconectando +${userId} en 10s...`))
+                setTimeout(() => roryJadiBot(options), 10000)
             }
         }
     }
 
-    sock.ev.on('connection.update', connectionUpdate)
-    sock.ev.on('creds.update', saveCreds)
+// PRIMERO: Asignar el handler ANTES de listeners
+let sock_handler = null
+try {
+    const handlerFile = await import('../Rory-Mercury.js')
+    if (handlerFile?.handler) {
+        sock_handler = handlerFile.handler.bind(sock)
+        sock.handler = sock_handler
+    }
+} catch (e) {
+    console.error('[ SUB-BOT ERROR ] No se pudo cargar handler:', e.message)
+}
 
-    try {
-        let handlerFile = await import('../shiroko.js')
-        sock.handler = handlerFile.handler.bind(sock)
+// SEGUNDO: Registrar connection listeners
+sock.ev.on('connection.update', connectionUpdate)
+sock.ev.on('creds.update', saveCreds)
 
-        sock.ev.on('messages.upsert', async (chatUpdate) => {
-            for (let msg of chatUpdate.messages) {
-                if (!msg.message) continue
-                let msgTime = msg.messageTimestamp
-                if (msgTime < startTime) continue
+// TERCERO: Registrar mensajes SOLO si handler existe
+if (sock_handler) {
+    sock.ev.on('messages.upsert', async (chatUpdate) => {
+        if (!sock.isInit) return
+        for (let msg of chatUpdate.messages) {
+            if (!msg.message) continue
+            let msgTime = msg.messageTimestamp
+            if (msgTime < startTime) continue
+            try {
                 await sock.handler(chatUpdate)
+            } catch (err) {
+                console.error('[ SUB-BOT ERROR ] Error en handler:', err.message)
             }
-        })
-    } catch (e) {}
+        }
+    })
+}
 
     return true
 }
 
-// ── HANDLER PRINCIPAL ────────────────────────────────────────
-let handler = async (m, { conn, args, usedPrefix, command, isOwner }) => {
+let handler = async (m, { conn, args, usedPrefix, command }) => {
     cleanInactiveSessions()
 
-    // Manejo seguro del JID del bot para evitar errores si no existe
-    const userJid = conn.user.jid || conn.user.id
-    if (!globalThis.db.data.settings[userJid]?.jadibotmd) {
-        return m.reply(`ꕤ El Comando *${command}* está desactivado.`)
+    const botJid = conn.user?.jid || conn.user?.id
+    const isJadibotEnabled = global.db?.data?.settings?.[botJid]?.jadibotmd ?? true
+
+    if (!isJadibotEnabled) {
+        return m.reply(`ꕤ El comando *${command}* está desactivado actualmente.`)
     }
 
-    // ── USUARIO PIDE SUB-BOT ─────────────────────────────────
-    let user = global.db.data.users[m.sender]
-    let time = (user.Subs || 0) + 120000
-    if (new Date() - (user.Subs || 0) < 120000) {
-        return conn.reply(m.chat, `ꕤ Debes esperar ${msToTime(time - new Date())} para volver a vincular un *Sub-Bot.*`, m)
+    let user = global.db?.data?.users?.[m.sender] || {}
+    let cooldown = (user.Subs || 0) + 120000
+    if (Date.now() - (user.Subs || 0) < 120000) {
+        return conn.reply(m.chat, `ꕤ Debes esperar *${msToTime(cooldown - Date.now())}* para volver a solicitar un Sub-Bot.`, m)
     }
 
-    let socklimit = global.conns.filter(sock => sock?.user).length
-    if (socklimit >= 50) return m.reply(`ꕤ No hay espacios disponibles para Sub-Bots.`)
+    let activeBots = global.conns.filter(c => c?.sock?.user).length
+    if (activeBots >= 50) {
+        return m.reply(`ꕤ Se ha alcanzado el límite de Sub-Bots activos (50/50).`)
+    }
 
-    let id = `${m.sender.split`@`[0]}`
-    let pathshirokoJadiBot = path.join(`./${global.jadi}/`, id)
-    if (!fs.existsSync(pathshirokoJadiBot)) fs.mkdirSync(pathshirokoJadiBot, { recursive: true })
+// Si pasas el número por argumento (ej: /code 525656953441), lo toma; si no, limpia tu número real del emisor
+    let inputNumber = args[0] ? args[0].replace(/[^0-9]/g, '') : ''
+    let realSender = await resolveRealJid(conn, m.chat, m.sender)
+    let senderNum = realSender.split('@')[0].replace(/[^0-9]/g, '')
+    
+    // Si tu ID tiene longitud de LID (>13 dígitos) y no pasaste argumento, te pedirá el número o usará respaldo
+    let id = inputNumber || (senderNum.length > 13 ? "525656953441" : senderNum) // <--- ¡CAMBIA AQUÍ TU NÚMERO REAL CON CÓDIGO DE PAÍS SI ES NECESARIO!
+    
+    let pathSubBot = path.join(`./${JADI_FOLDER}/`, id)
+    if (!fs.existsSync(pathSubBot)) fs.mkdirSync(pathSubBot, { recursive: true })
 
     global.isSent[id] = false
-    user.Subs = new Date() * 1
-
-    // Guardar solicitud pendiente
-    const pendingKey = `${m.chat}_${m.sender}`
-    pendingApprovals.set(pendingKey, {
-        options: { pathshirokoJadiBot, m, conn, args, usedPrefix, command, fromCommand: true },
-        expiresAt: Date.now() + APPROVAL_TTL
-    })
-
-    // Limpiar si expira sin respuesta
-    setTimeout(() => {
-        if (pendingApprovals.has(pendingKey)) {
-            pendingApprovals.delete(pendingKey)
-        }
-    }, APPROVAL_TTL)
-
-    // Notificar al owner con mencion
-    const ownerJid = global.owner[0].replace(/[^0-9]/g, '') + '@s.whatsapp.net'
-    const solicitante = user.name || m.sender.split('@')[0]
-    const tipo = command === 'code' ? 'código de vinculación' : 'código QR'
-
-    await conn.sendMessage(m.chat, {
-        text: `ꕤ @${ownerJid.split('@')[0]} *${solicitante}* solicita un Sub-Bot (${tipo}).\n\nEscribe *aceptar* para aprobar o ignora para rechazar.\n> Expira en *5 minutos*.`,
-        mentions: [ownerJid]
-    })
-}
-
-// ── EVENTO BEFORE: INTERCEPTA LA PALABRA "aceptar" ───────────
-handler.before = async function (m, { conn, isOwner }) {
-    if (m.text?.trim().toLowerCase() === 'aceptar') {
-        const pendingKey = [...pendingApprovals.keys()].find(k => k.startsWith(m.chat + '_'))
-        if (!pendingKey) return false
-
-        const pending = pendingApprovals.get(pendingKey)
-        
-        const botNumber = (conn.user.id || conn.user.jid).split(':')[0]
-        const senderNumber = m.sender.split('@')[0]
-        
-        const isValidApprover = isOwner || senderNumber === botNumber
-        
-        if (!isValidApprover) {
-            await conn.reply(m.chat, 'ꕤ Solo el owner o el socket pueden aceptar.', m)
-            return true
-        }
-
-        pendingApprovals.delete(pendingKey)
-
-        if (Date.now() > pending.expiresAt) {
-            await conn.reply(m.chat, 'ꕤ La solicitud expiró. Intenta de nuevo.', m)
-            return true
-        }
-
-        await conn.reply(m.chat, `ꕤ Solicitud aprobada. Generando ${pending.options.command === 'code' ? 'código' : 'QR'}...`, m)
-        await shirokoJadiBot(pending.options)
-        return true
+    if (global.db?.data?.users?.[m.sender]) {
+        global.db.data.users[m.sender].Subs = Date.now()
     }
-    return false
+
+    const isCode = command === 'code' || (args && args.includes('--code'))
+    await conn.reply(m.chat, `ꕤ Generando ${isCode ? 'código de vinculación' : 'código QR'}, por favor espera...`, m)
+
+    await roryJadiBot({ 
+        pathSubBot, 
+        m, 
+        conn, 
+        args, 
+        usedPrefix, 
+        command, 
+        fromCommand: true 
+    })
 }
 
-handler.command = ['qr', 'code']
+handler.help = ['jadibot', 'code']
+handler.tags = ['jadibot']
+handler.command = ['qr', 'code', 'jadibot', 'subbot']
+
 export default handler
