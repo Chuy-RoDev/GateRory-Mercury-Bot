@@ -1,14 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-const CONFIG_PATH = path.join('./database/autorw_config.json')
-
-global.autorwProcessedMsgs = global.autorwProcessedMsgs || new Set()
-global.autorwTimers = global.autorwTimers || {}
-
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-const getRandomDelay = (min = 3500, max = 5500) => Math.floor(Math.random() * (max - min + 1)) + min
-const getClaimDelay = (min = 2500, max = 4000) => Math.floor(Math.random() * (max - min + 1)) + min
 
 const cleanUnicode = (str) => {
     if (!str) return ''
@@ -21,19 +14,33 @@ const cleanUnicode = (str) => {
 
 const getCleanNumber = (jid) => jid ? String(jid).split('@')[0].split(':')[0].replace(/[^0-9]/g, '') : ''
 
-const loadConfig = () => {
-    if (!fs.existsSync('./database')) fs.mkdirSync('./database', { recursive: true })
+// Desfase dinámico mejorado para evitar que múltiples bots tiren en el mismo milisegundo
+const getBotStaggerDelay = (botNumber) => {
+    const num = parseInt(botNumber.slice(-4), 10) || 0
+    const baseDelay = (num % 5) * 2500 // Separación de 2.5s por bot
+    const jitter = Math.floor(Math.random() * 1000) // Variación aleatoria de 0-1s
+    return baseDelay + jitter
+}
+
+const getConfigPath = (botNumber) => {
+    const botDir = path.join('./database/autorw', botNumber)
+    if (!fs.existsSync(botDir)) fs.mkdirSync(botDir, { recursive: true })
+    return path.join(botDir, 'config.json')
+}
+
+const loadConfig = (botNumber) => {
+    const configPath = getConfigPath(botNumber)
     const defaultConfig = { minValor: 8000, groups: {} }
-    
-    if (!fs.existsSync(CONFIG_PATH)) {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2))
+
+    if (!fs.existsSync(configPath)) {
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2))
         return defaultConfig
     }
-    
+
     try {
-        const fileContent = fs.readFileSync(CONFIG_PATH, 'utf8')
+        const fileContent = fs.readFileSync(configPath, 'utf8')
         if (!fileContent.trim()) {
-            fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2))
+            fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2))
             return defaultConfig
         }
         const data = JSON.parse(fileContent)
@@ -41,27 +48,38 @@ const loadConfig = () => {
         if (typeof data.minValor !== 'number') data.minValor = parseInt(data.minValor, 10) || 8000
         return data
     } catch {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2))
+        fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2))
         return defaultConfig
     }
 }
 
-const saveConfig = (data) => fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2))
+const saveConfig = (botNumber, data) => {
+    const configPath = getConfigPath(botNumber)
+    fs.writeFileSync(configPath, JSON.stringify(data, null, 2))
+}
 
-const getGroupConfig = (config, chat, botNum) => {
-    const key = `${chat}_${botNum}`
-    if (!config.groups[key]) {
-        config.groups[key] = {
+const getGroupConfig = (config, chat) => {
+    if (!config.groups[chat]) {
+        config.groups[chat] = {
             enabled: false,
-            status: 'IDLE',
-            lastStateTime: Date.now(),
-            lastSentGinfoTime: 0,
-            lastSentRwTime: 0,
-            botName: '',
-            targetBot: ''
+            minValor: 8000
         }
     }
-    return config.groups[key]
+    return config.groups[chat]
+}
+
+const getBotState = (botNumber, chat) => {
+    if (!global.autorwStates) global.autorwStates = {}
+    const key = `${botNumber}_${chat}`
+    if (!global.autorwStates[key]) {
+        global.autorwStates[key] = {
+            status: 'IDLE',
+            lastGinfoSent: 0,
+            lastRwSent: 0,
+            botName: ''
+        }
+    }
+    return global.autorwStates[key]
 }
 
 const parseCooldown = (text, typePattern) => {
@@ -90,7 +108,6 @@ const parseValue = (text) => {
     if (!cleaned) return 0
 
     const lines = cleaned.split(/[\n\r]+/)
-    // Evitar leer "Valor total"
     const valorLine = lines.find(l => /Valor\s*»|Valor\s*:/i.test(l) && !/Valor\s*total/i.test(l))
     if (!valorLine) return 0
 
@@ -115,198 +132,186 @@ const parseValue = (text) => {
     }
 }
 
-const resetTimer = (conn, chat, timeMs = 10 * 60 * 1000) => {
-    const myCleanNumber = getCleanNumber(conn.user?.jid)
-    const timerKey = `${chat}_${myCleanNumber}`
+const resetTimer = (conn, botNumber, chat, timeMs = 10 * 60 * 1000) => {
+    if (!global.autorwTimersByBot) global.autorwTimersByBot = {}
+    if (!global.autorwTimersByBot[botNumber]) global.autorwTimersByBot[botNumber] = {}
+    const timers = global.autorwTimersByBot[botNumber]
 
-    if (global.autorwTimers[timerKey]) clearTimeout(global.autorwTimers[timerKey])
+    if (timers[chat]) clearTimeout(timers[chat])
 
-    global.autorwTimers[timerKey] = setTimeout(async () => {
-        let config = loadConfig()
-        let gConfig = getGroupConfig(config, chat, myCleanNumber)
+    const stagger = getBotStaggerDelay(botNumber)
+
+    timers[chat] = setTimeout(async () => {
+        let config = loadConfig(botNumber)
+        let gConfig = getGroupConfig(config, chat)
+        let state = getBotState(botNumber, chat)
 
         if (!gConfig.enabled) return
 
-        gConfig.status = 'WAITING_GINFO'
-        gConfig.lastStateTime = Date.now()
-        gConfig.lastSentGinfoTime = Date.now()
-        saveConfig(config)
+        state.status = 'WAITING_GINFO'
+        state.lastGinfoSent = Date.now()
 
-        await delay(getRandomDelay(3000, 5000))
+        await delay(stagger)
         await conn.sendMessage(chat, { text: '#ginfo' })
-        resetTimer(conn, chat, 10 * 60 * 1000)
+        resetTimer(conn, botNumber, chat, 10 * 60 * 1000)
     }, timeMs)
 }
 
 let handler = async (m, { conn, args, usedPrefix, command }) => {
-    let config = loadConfig()
-    const chat = m.chat
     const myCleanNumber = getCleanNumber(conn.user?.jid)
-    const gConfig = getGroupConfig(config, chat, myCleanNumber)
+    if (!myCleanNumber) return
+
+    let config = loadConfig(myCleanNumber)
+    const chat = m.chat
+    const gConfig = getGroupConfig(config, chat)
+    const state = getBotState(myCleanNumber, chat)
     const subCommand = args[0]?.toLowerCase()
 
     if (subCommand === 'off') {
         gConfig.enabled = false
-        gConfig.status = 'IDLE'
-        saveConfig(config)
-        const timerKey = `${chat}_${myCleanNumber}`
-        if (global.autorwTimers[timerKey]) clearTimeout(global.autorwTimers[timerKey])
+        state.status = 'IDLE'
+        saveConfig(myCleanNumber, config)
+        if (global.autorwTimersByBot?.[myCleanNumber]?.[chat]) {
+            clearTimeout(global.autorwTimersByBot[myCleanNumber][chat])
+        }
         return conn.sendMessage(chat, { text: `ꕤ AutoRW desactivado para @${myCleanNumber}.` }, { quoted: m })
     }
-    
+
+    if (subCommand === 'min') {
+        const newMin = parseInt(args[1], 10)
+        if (isNaN(newMin) || newMin < 0) {
+            return conn.sendMessage(chat, { text: `ꕤ Usa: *${usedPrefix + command} min [número]*` }, { quoted: m })
+        }
+        config.minValor = newMin
+        saveConfig(myCleanNumber, config)
+        return conn.sendMessage(chat, { text: `ꕤ Valor mínimo para @${myCleanNumber} actualizado a: *${newMin}*` }, { quoted: m })
+    }
+
     if (subCommand === 'sync') {
-        const manualName = args.slice(1).join(' ').trim()
-        gConfig.enabled = true
-        if (manualName) gConfig.botName = manualName
-        gConfig.targetBot = m.quoted?.sender || (m.mentionedJid && m.mentionedJid[0]) || gConfig.targetBot || ''
-        gConfig.status = 'WAITING_GINFO'
-        gConfig.lastStateTime = Date.now()
-        gConfig.lastSentGinfoTime = Date.now()
-        saveConfig(config)
+        const stagger = getBotStaggerDelay(myCleanNumber)
         
-        resetTimer(conn, chat, 10 * 60 * 1000)
-        await conn.sendMessage(chat, { text: `ꕤ AutoRW activado para @${myCleanNumber}${gConfig.botName ? ` (${gConfig.botName})` : ''}. Sincronizando...` }, { quoted: m })
-        await delay(getRandomDelay(2500, 4500))
+        gConfig.enabled = true
+        saveConfig(myCleanNumber, config)
+
+        state.status = 'WAITING_GINFO'
+        state.lastGinfoSent = Date.now()
+
+        resetTimer(conn, myCleanNumber, chat, 10 * 60 * 1000)
+        await conn.sendMessage(chat, { text: `ꕤ AutoRW activado para @${myCleanNumber}. Sincronizando...` }, { quoted: m })
+        
+        await delay(stagger)
+        state.lastGinfoSent = Date.now()
         return conn.sendMessage(chat, { text: '#ginfo' })
     }
 
-    return conn.sendMessage(chat, { text: `Usa *${usedPrefix + command} sync [nombre_opcional]* para activar o *${usedPrefix + command} off* para desactivar.` }, { quoted: m })
+    return conn.sendMessage(chat, { text: `Usa:\n*${usedPrefix + command} sync* - Activar\n*${usedPrefix + command} min [número]* - Valor mínimo\n*${usedPrefix + command} off* - Desactivar` }, { quoted: m })
 }
 
 handler.before = async function (m, { conn }) {
     if (!m.chat || m.isBaileys) return
 
-    const myJid = conn.user?.jid || ''
-    const myCleanNumber = getCleanNumber(myJid)
+    const myCleanNumber = getCleanNumber(conn.user?.jid)
     if (!myCleanNumber) return
 
     const chat = m.chat
-    let config = loadConfig()
-    const gConfig = getGroupConfig(config, chat, myCleanNumber)
+    let config = loadConfig(myCleanNumber)
+    const gConfig = getGroupConfig(config, chat)
+    const state = getBotState(myCleanNumber, chat)
 
     if (!gConfig.enabled) return
-
-    // Timeout de seguridad si el bot se atasca en un estado
-    if (gConfig.status !== 'IDLE' && (Date.now() - (gConfig.lastStateTime || 0) > 18000)) {
-        gConfig.status = 'IDLE'
-        saveConfig(config)
-    }
 
     let rawText = m.text || m.caption || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || ''
     const cleanText = cleanUnicode(rawText)
     if (!cleanText) return
 
-    const msgId = m.key?.id || m.id
-    const processKey = `${msgId}_${myCleanNumber}`
-    if (msgId && global.autorwProcessedMsgs.has(processKey)) return
-
-    let senderJid = m.sender || m.key?.participant || ''
-
-    // EXPRESIONES REGULARES DE TIPO DE MENSAJE ESTRICTAS
     const isGinfoMsg = /RollWaifu|Roll Waifu|Personajes reclamados|Personajes totales|Valor total/i.test(cleanText)
     const isCardMsg = !isGinfoMsg && /Nombre\s*»|Fuente\s*»/i.test(cleanText) && /Valor\s*»/i.test(cleanText)
     const isCooldownMsg = /Debes esperar|cooldown|agotado/i.test(cleanText)
 
-    if (isGinfoMsg || isCardMsg || isCooldownMsg) {
-        if (!/^[/#.!]/.test(cleanText.trim())) {
-            const cleanTarget = getCleanNumber(gConfig.targetBot)
-            const cleanSender = getCleanNumber(senderJid)
-            if (!gConfig.targetBot || cleanTarget !== cleanSender) {
-                gConfig.targetBot = senderJid
-                saveConfig(config)
-            }
-        }
-    }
-
-    if (!gConfig.targetBot) return
-    if (getCleanNumber(senderJid) !== getCleanNumber(gConfig.targetBot)) return
-
     const quotedSender = m.quoted ? getCleanNumber(m.quoted.sender) : null
 
-    // CASO 1: Mensaje de Cooldown
+    // CASO 1: Cooldowns dirigidos
     if (isCooldownMsg) {
-        if (msgId) global.autorwProcessedMsgs.add(processKey)
+        if (quotedSender && quotedSender !== myCleanNumber && (Date.now() - state.lastRwSent > 12000)) return
+        
         const waitMs = parseCooldown(cleanText, 'esperar|cooldown') || (3 * 60 * 1000)
-        gConfig.status = 'IDLE'
-        saveConfig(config)
-        resetTimer(conn, chat, waitMs + getRandomDelay(3000, 6000))
+        state.status = 'IDLE'
+        resetTimer(conn, myCleanNumber, chat, waitMs + 4000)
         return
     }
 
-    // CASO 2: Respuesta a #ginfo
+    // CASO 2: Procesar #ginfo
     if (isGinfoMsg) {
-        // Ignorar respuestas destinadas explícitamente a otro bot
-        if (quotedSender && quotedSender !== myCleanNumber) return
+        const timeSinceGinfo = Date.now() - state.lastGinfoSent
+        const isRecentRequest = timeSinceGinfo < 25000
 
-        const userHeaderMatch = cleanText.match(/Usuario\s*[`<"']*\s*([^`"'>\n]+)/i)
-        if (userHeaderMatch && userHeaderMatch[1]) {
-            const extractedName = userHeaderMatch[1].trim().replace(/[`<"'>]/g, '')
-            if (extractedName && gConfig.botName !== extractedName && (quotedSender === myCleanNumber || gConfig.status === 'WAITING_GINFO')) {
-                gConfig.botName = extractedName
-                saveConfig(config)
+        const userHeaderMatch = cleanText.match(/Usuario\s*[:»`<\*\s]*([^`"'>\*\n]+)/i)
+        const extractedName = userHeaderMatch ? userHeaderMatch[1].trim().replace(/[`<"'>\*]/g, '') : ''
+
+        let isForMe = false
+
+        if (state.status === 'WAITING_GINFO' && isRecentRequest) {
+            isForMe = true
+            if (extractedName) state.botName = extractedName
+        } else if (state.botName && extractedName) {
+            if (extractedName.toLowerCase() === state.botName.toLowerCase()) {
+                isForMe = true
             }
         }
 
-        if (gConfig.status === 'WAITING_GINFO') {
-            if (msgId) global.autorwProcessedMsgs.add(processKey)
-            
+        if (isForMe) {
+            state.status = 'PROCESSING'
+
             const claimCooldown = parseCooldown(cleanText, 'Claim')
             const rwCooldown = parseCooldown(cleanText, 'RollWaifu|Roll Waifu')
-            const maxCooldown = Math.max(claimCooldown, rwCooldown)
-            
-            if (maxCooldown === 0) {
-                gConfig.status = 'WAITING_RW'
-                gConfig.lastStateTime = Date.now()
-                gConfig.lastSentRwTime = Date.now()
-                saveConfig(config)
-                
-                await delay(getRandomDelay(3000, 5000))
-                return conn.sendMessage(chat, { text: '#rw' })
+
+            if (claimCooldown > 0) {
+                state.status = 'IDLE'
+                resetTimer(conn, myCleanNumber, chat, claimCooldown + 5000)
+                return
+            }
+
+            if (rwCooldown === 0) {
+                state.status = 'WAITING_CARD'
+                state.lastRwSent = Date.now()
+
+                const stagger = getBotStaggerDelay(myCleanNumber)
+                await delay(1000 + (stagger % 1500))
+                await conn.sendMessage(chat, { text: '#rw' })
+                return
             } else {
-                gConfig.status = 'IDLE'
-                saveConfig(config)
-                resetTimer(conn, chat, maxCooldown + getRandomDelay(3000, 6000))
+                state.status = 'IDLE'
+                resetTimer(conn, myCleanNumber, chat, rwCooldown + 4000)
                 return
             }
         }
         return
     }
 
-    // CASO 3: Aparición de una Carta (Waifu)
+    // CASO 3: Procesar Carta
     if (isCardMsg) {
-        const elapsedTime = Date.now() - (gConfig.lastSentRwTime || 0)
-        if (elapsedTime > 25000 || gConfig.status !== 'WAITING_RW') return
+        const timeSinceRw = Date.now() - state.lastRwSent
+        const isMyCardWindow = state.status === 'WAITING_CARD' && timeSinceRw < 15000
 
-        if (msgId) global.autorwProcessedMsgs.add(processKey)
+        if (!isMyCardWindow) return 
+
+        // Consumir el estado de inmediato para que NO procese una segunda carta de otro subbot
+        state.status = 'IDLE'
         
         const itemValue = parseValue(cleanText)
         const minVal = parseInt(config.minValor || 8000, 10)
-        
+
         if (itemValue >= minVal) {
-            // Reclamar la carta citando explícitamente el mensaje del bot de gacha
-            await delay(getClaimDelay(2500, 4000))
+            await delay(1200)
             await conn.sendMessage(chat, { text: '#c' }, { quoted: m })
-            
-            gConfig.status = 'WAITING_GINFO'
-            gConfig.lastStateTime = Date.now()
-            gConfig.lastSentGinfoTime = Date.now()
-            saveConfig(config)
-            
-            await delay(getRandomDelay(3500, 5000))
-            return conn.sendMessage(chat, { text: '#ginfo' })
+            resetTimer(conn, myCleanNumber, chat, 30 * 60 * 1000)
         } else {
-            gConfig.status = 'WAITING_RW'
-            gConfig.lastStateTime = Date.now()
-            gConfig.lastSentRwTime = Date.now()
-            saveConfig(config)
-            
-            await delay(getRandomDelay(3500, 5000))
-            return conn.sendMessage(chat, { text: '#rw' })
+            resetTimer(conn, myCleanNumber, chat, 15 * 60 * 1000)
         }
     }
 }
 
-handler.help = ['autorw sync [nombre]', 'autorw off']
+handler.help = ['autorw sync', 'autorw off', 'autorw min [número]']
 handler.tags = ['gacha']
 handler.command = ['autorw']
 

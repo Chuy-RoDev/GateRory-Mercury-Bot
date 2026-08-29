@@ -1,87 +1,141 @@
-import fetch from 'node-fetch';
+import fetch from 'node-fetch'
 
-// --- CONFIGURACIÓN DE LA API ---
-const API_BASE_URL = "https://rest.apicausas.xyz/api/v1/nsfw/descargas/rule34";
-const API_KEY = "causa-ee5ee31dcfc79da4";
+const API_KEY = "a4e807dd6d4c9e55768772996946e4074030ec02c49049d291e5edb8808a97b004190660b4b36c3d21699144c823ad93491d066e73682a632a38f9b6c3cf951b"
+const USER_ID = "5753302"
+
+// Función auxiliar para consultar la API
+const fetchPosts = async (tags) => {
+    try {
+        const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=300&tags=${encodeURIComponent(tags)}&api_key=${API_KEY}&user_id=${USER_ID}`
+        const res = await fetch(url, { 
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': 'application/json' } 
+        })
+        if (!res.ok) return []
+        const text = await res.text()
+        const json = JSON.parse(text)
+        return Array.isArray(json) ? json : json?.post || json?.data || []
+    } catch {
+        return []
+    }
+}
 
 const handler = async (m, { conn, args, usedPrefix, command }) => {
     // 1. Verificación de NSFW
-    const chat = global.db.data.chats[m.chat];
+    const chat = global.db?.data?.chats?.[m.chat]
     if (m.isGroup && !chat?.nsfw) {
-        return m.reply(`El NSFW está deshabilitado... ¿Realmente quieres hacer esto?..\n> Un administrador debe activarlo con: *${usedPrefix}nsfw on*`);
+        return m.reply(`El NSFW está deshabilitado... ¿Realmente quieres hacer esto?..\n> Un administrador debe activarlo con: *${usedPrefix}nsfw on*`)
     }
 
     // 2. Validación de Argumentos
     if (!args[0]) {
-        return m.reply(`Esto... ¿Realmente quieres que haga esto?... *Pervertido.*\n\n> *Ejemplo:*\n*${usedPrefix + command} mika_misono*`);
+        return m.reply(`Esto... ¿Realmente quieres que haga esto?... *Pervertido.*\n\n> *Ejemplo:*\n*${usedPrefix + command} mika_misono*`)
     }
 
-    const tags = args.join(', ');
-    const queryUrl = `${API_BASE_URL}?tags=${encodeURIComponent(tags)}&apikey=${API_KEY}`;
+    // 3. Detección de Modo Solo Video y Limpieza de Tags
+    const isVideoCmd = ['r34vid', 'rule34vid', 'rulevid'].includes(command)
+    const rawInput = args.join(' ')
+    let onlyVideo = isVideoCmd || /(\bvideo\b|\bvid\b|\bmp4\b|_video)/i.test(rawInput)
+
+    let cleanTag = rawInput
+    if (!/_video/i.test(rawInput)) {
+        const filteredArgs = args.filter(a => !/^(video|vid|mp4)$/i.test(a))
+        cleanTag = filteredArgs.length ? filteredArgs.join(' ') : rawInput
+    }
 
     try {
-        await m.react('⏳');
+        await m.react('⏳')
 
-        const response = await fetch(queryUrl);
-        const json = await response.json();
+        const images = []
+        const videos = []
 
-        // 3. Manejo de errores
-        if (!json.status || !json.data.results || json.data.results.length === 0) {
-            await m.react('❌');
-            return m.reply(`*Cero unidades encontradas.* 🦈\nNo hay nada de "${tags}" aquí. Qué pérdida de tiempo.`);
-        }
+        if (onlyVideo) {
+            // SI PIDIÓ VIDEO: Hace una única búsqueda agregando la etiqueta 'video' a R34
+            const queryTag = /_video/i.test(rawInput) ? cleanTag : `${cleanTag} video`
+            const posts = await fetchPosts(queryTag)
+            const shuffled = posts.sort(() => Math.random() - 0.5)
 
-        const results = json.data.results;
-        
-        // --- SEPARACIÓN: HASTA 5 IMÁGENES Y 5 VÍDEOS ---
-        const images = [];
-        const videos = [];
+            for (const post of shuffled) {
+                const fileUrl = post?.file_url || post?.sample_url || post?.preview_url
+                if (!fileUrl || typeof fileUrl !== 'string') continue
+                const cleanUrl = fileUrl.split('?')[0]
+                const ext = (post?.file_ext || cleanUrl.split('.').pop() || '').toLowerCase()
 
-        for (const post of results) {
-            const fileUrl = post.file_url;
-            if (!fileUrl) continue;
+                if (['mp4', 'webm', 'mov', 'm4v'].includes(ext) || /\.mp4$/i.test(cleanUrl)) {
+                    videos.push({
+                        type: 'video',
+                        video: { url: fileUrl },
+                        data: { url: fileUrl }
+                    })
+                }
+                if (videos.length === 5) break
+            }
+        } else {
+            // BÚSQUEDA MIXTA: Realiza 2 búsquedas simultáneas (Imágenes generales + Vídeos dedicados)
+            const [generalPosts, videoPosts] = await Promise.all([
+                fetchPosts(cleanTag),
+                fetchPosts(`${cleanTag} video`)
+            ])
 
-            const type = post.type ? post.type.toLowerCase() : fileUrl.split('.').pop().toLowerCase();
-            const isVideo = ['mp4', 'webm', 'mov', 'gif'].includes(type);
+            // Capturar 5 imágenes de la búsqueda general
+            const shuffledGeneral = generalPosts.sort(() => Math.random() - 0.5)
+            for (const post of shuffledGeneral) {
+                const fileUrl = post?.file_url || post?.sample_url || post?.preview_url
+                if (!fileUrl || typeof fileUrl !== 'string') continue
+                const cleanUrl = fileUrl.split('?')[0]
+                const ext = (post?.file_ext || cleanUrl.split('.').pop() || '').toLowerCase()
 
-            const mediaObj = {
-                type: isVideo ? 'video' : 'image',
-                data: { url: fileUrl }
-            };
-
-            if (isVideo && videos.length < 5) {
-                videos.push(mediaObj);
-            } else if (!isVideo && images.length < 5) {
-                images.push(mediaObj);
+                if (['jpg', 'jpeg', 'png', 'gif'].includes(ext) || /\.(jpe?g|png|gif)$/i.test(cleanUrl)) {
+                    images.push({
+                        type: 'image',
+                        image: { url: fileUrl },
+                        data: { url: fileUrl }
+                    })
+                }
+                if (images.length === 5) break
             }
 
-            // Si ya se juntaron 5 de cada tipo, detener la búsqueda
-            if (images.length === 5 && videos.length === 5) break;
+            // Capturar 5 vídeos de la búsqueda de vídeos
+            const shuffledVideos = videoPosts.sort(() => Math.random() - 0.5)
+            for (const post of shuffledVideos) {
+                const fileUrl = post?.file_url || post?.sample_url || post?.preview_url
+                if (!fileUrl || typeof fileUrl !== 'string') continue
+                const cleanUrl = fileUrl.split('?')[0]
+                const ext = (post?.file_ext || cleanUrl.split('.').pop() || '').toLowerCase()
+
+                if (['mp4', 'webm', 'mov', 'm4v'].includes(ext) || /\.mp4$/i.test(cleanUrl)) {
+                    videos.push({
+                        type: 'video',
+                        video: { url: fileUrl },
+                        data: { url: fileUrl }
+                    })
+                }
+                if (videos.length === 5) break
+            }
         }
 
-        const medias = [...images, ...videos];
+        const medias = onlyVideo ? videos : [...images, ...videos]
 
-        if (medias.length === 0) {
-            await m.react('❌');
-            return m.reply(`*Cero archivos válidos encontrados.* 🦈`);
+        if (!medias.length) {
+            await m.react('❌')
+            return m.reply(`*Cero ${onlyVideo ? 'vídeos' : 'archivos válidos'} encontrados.* 🦈\nNo hay resultados para "${cleanTag}".`)
         }
 
-        const caption = `Encontré *${images.length} imágenes* y *${videos.length} vídeos* para: *${tags}*... *Pervertido.*`;
+        const caption = onlyVideo
+            ? `Encontré *${videos.length} vídeo(s)* para: *${cleanTag}*... *Pervertido.*`
+            : `Encontré *${images.length} imágenes* y *${videos.length} vídeos* para: *${cleanTag}*... *Pervertido.*`
 
-        // 4. Envío de medios
-        await conn.sendSylphy(m.chat, medias, { caption, quoted: m });
-
-        await m.react('✔️');
+        await conn.sendSylphy(m.chat, medias, { caption, quoted: m })
+        await m.react('✔️')
 
     } catch (e) {
-        console.error('Error:', e);
-        await m.react('❌');
-        await m.reply(`*Ugh, algo salió mal.* 🛠️\nLa base de datos no responde. Arréglatelas solo.`);
+        console.error('Error Rule34:', e)
+        await m.react('❌')
+        await m.reply(`*Ugh, algo salió mal.* 🛠️\nLa base de datos no responde. Arréglatelas solo.`)
     }
-};
+}
 
-handler.help = ['rule34 <tags>'];
-handler.tags = ['nsfw'];
-handler.command = ['r34', 'rule34'];
+handler.help = ['rule34 <tags>']
+handler.tags = ['nsfw']
+handler.command = ['r34', 'rule34', 'r34vid', 'rule34vid', 'rule', 'rulevid']
 
-export default handler;
+export default handler

@@ -25,8 +25,8 @@ export async function handler(chatUpdate) {
 
     // BOZAL ABSOLUTO PARA SUB-BOTS: Si escriben /autorw, solo el principal actúa
     if (m.text && /^[#./!]?autorw/i.test(m.text.trim())) {
-        const currentBotDigits = String(this.user?.jid || this.user?.id || '').replace(/[^0-9]/g, '')
-        const mainBotDigits = String(global.conn?.user?.jid || global.conn?.user?.id || '').replace(/[^0-9]/g, '')
+        const currentBotDigits = String(this.user?.jid || this.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '')
+        const mainBotDigits = String(global.conn?.user?.jid || global.conn?.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '')
         if (currentBotDigits !== mainBotDigits) return
     }
 
@@ -53,10 +53,12 @@ export async function handler(chatUpdate) {
         const chat = db.chats[mChat]
         const settings = db.settings[this.user.jid]
 
+        // Normalización limpia de JID (corta :dispositivo y @servidor antes de filtrar dígitos)
         const parseNum = v => {
             if (!v) return ""
             const str = Array.isArray(v) ? v[0] : v
-            return String(str).replace(/[^0-9]/g, "")
+            const base = String(str).split('@')[0].split(':')[0]
+            return base.replace(/[^0-9]/g, "")
         }
 
         const isROwner = global.owner.some(num => {
@@ -138,9 +140,14 @@ export async function handler(chatUpdate) {
             const primaryDigits = parseNum(chat.primaryBot)
 
             const currentSub = Array.isArray(global.conns) ? global.conns.find(c => {
-                const cDigits = [c.jid, c.subId, c.sock?.user?.id, c.sock?.user?.jid].map(parseNum)
-                return cDigits.includes(currentBotDigits)
+                const cJidClean = parseNum(c.jid)
+                const cSubIdClean = parseNum(c.subId)
+                return currentBotDigits === cJidClean || currentBotDigits === cSubIdClean
             }) : null
+
+            if (currentSub) {
+                console.log(`[ DEBUG ] Found subbot: ${currentSub.name}, digits: ${parseNum(currentSub.subId)}`)
+            }
 
             const botRawName = currentSub?.name || currentSub?.notify || this.user?.name || (currentBotDigits === mainBotDigits ? global.botname : '') || global.botname || ''
 
@@ -177,10 +184,10 @@ export async function handler(chatUpdate) {
                 isPrimary = (currentBotDigits === mainBotDigits)
             }
 
-            // Permitir que comandos manuales de gacha (#rw, #ginfo, #c) no sean bloqueados
-            const isGachaOrMulti = /^[#./!]?(rw|ginfo|c|claim|rollwaifu|autorw)(\s+|$)/i.test(m.text.trim())
+            // Exención para comandos de administración y gacha para evitar bloqueos
+            const isExemptCmd = /^[#./!]?(setprimary|setprefix|prefix|rw|ginfo|c|claim|rollwaifu|autorw)(\s+|$)/i.test(m.text.trim())
 
-            if (isGachaOrMulti) {
+            if (isExemptCmd) {
                 isCommandAllowed = true
             } else {
                 const matchedNamedPrefix = myPrefixes.find(p => m.text.toLowerCase().startsWith(p.toLowerCase()))
@@ -208,12 +215,24 @@ export async function handler(chatUpdate) {
 
             if (!opts["restrict"] && plugin.tags?.includes("admin")) continue
 
-            const pluginPrefix = plugin.customPrefix || (chat.prefix ? [chat.prefix] : null) || this.prefix || global.prefix
+            // Si el grupo tiene un prefijo asignado (chat.prefix), se usa exclusivamente ese.
+            // Si no tiene prefijo personalizado, usa la lista por defecto (global.prefix).
+            const globalPrefixList = Array.isArray(global.prefix) ? global.prefix : (global.prefix ? [global.prefix] : ['/'])
+            const combinedPrefixes = chat.prefix ? [chat.prefix] : globalPrefixList
+
+            const pluginPrefix = plugin.customPrefix || combinedPrefixes || this.prefix || global.prefix
             let match = null
 
-            const strRegex = (str) => str.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&")
+            const strRegex = (str) => {
+                if (str instanceof RegExp) return str.source
+                return String(str || '').replace(/[|\\{}()[\]^$+*?.]/g, "\\$&")
+            }
+
             if (m.text) {
-                const prefixRegex = pluginPrefix instanceof RegExp ? pluginPrefix : new RegExp(`^(${[].concat(pluginPrefix).map(p => strRegex(p)).join('|')})`)
+                const prefixRegex = pluginPrefix instanceof RegExp 
+                    ? pluginPrefix 
+                    : new RegExp(`^(${[].concat(pluginPrefix).filter(Boolean).map(p => strRegex(p)).join('|')})`)
+                
                 const execResult = prefixRegex.exec(m.text)
                 if (execResult) match = [execResult, prefixRegex]
             }

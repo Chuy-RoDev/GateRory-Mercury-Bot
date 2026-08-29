@@ -1,0 +1,34 @@
+{
+  "minValor": 8500,
+  "groups": {
+    "120363425869313503@g.us": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787893626775,
+      "lastSentGinfoTime": 1787893623457,
+      "lastSentRwTime": 1787893626775,
+      "botName": "SECUESTRA_TRAPITOS 3000",
+      "targetBot": "268934259454148@lid",
+      "lastRwMessageId": "3EB06801B704AC1AD4174B",
+      "isLocked": false
+    },
+    "120363420819546616@g.us": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787883945354,
+      "lastSentGinfoTime": 1787883945354,
+      "lastSentRwTime": 1787883941300,
+      "botName": "",
+      "targetBot": "268934259454148@lid"
+    },
+    "120363412456027557@g.us": {
+      "enabled": true,
+      "status": "IDLE",
+      "lastStateTime": 1787888300111,
+      "lastSentGinfoTime": 1787888300111,
+      "lastSentRwTime": 0,
+      "botName": "Remy Etienne",
+      "targetBot": "161783214010460@lid"
+    }
+  }
+}

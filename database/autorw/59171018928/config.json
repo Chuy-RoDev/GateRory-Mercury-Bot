@@ -1,0 +1,24 @@
+{
+  "minValor": 50,
+  "groups": {
+    "120363425869313503@g.us": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787893627217,
+      "lastSentGinfoTime": 1787893623490,
+      "lastSentRwTime": 1787893627217,
+      "botName": "SECUESTRA_TRAPITOS 3000",
+      "targetBot": "268934259454148@lid",
+      "isLocked": false
+    },
+    "120363420819546616@g.us": {
+      "enabled": true,
+      "status": "IDLE",
+      "lastStateTime": 1787883945781,
+      "lastSentGinfoTime": 1787883945781,
+      "lastSentRwTime": 1787883941330,
+      "botName": "",
+      "targetBot": "268934259454148@lid"
+    }
+  }
+}

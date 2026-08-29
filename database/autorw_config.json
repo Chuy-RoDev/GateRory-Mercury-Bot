@@ -3,46 +3,46 @@
   "groups": {
     "120363425869313503@g.us_59171018928": {
       "enabled": true,
-      "status": "IDLE",
-      "lastStateTime": 1787794192728,
-      "lastSentGinfoTime": 1787794192728,
-      "lastSentRwTime": 1787790797733,
-      "botName": "Perez/Chuy",
+      "status": "WAITING_GINFO",
+      "lastStateTime": 1787889067236,
+      "lastSentGinfoTime": 1787889067236,
+      "lastSentRwTime": 1787886954691,
+      "botName": "Remy Etienne",
       "targetBot": "152132338622498@lid"
     },
     "120363425869313503@g.us_5215656953441": {
       "enabled": true,
-      "status": "IDLE",
-      "lastStateTime": 1787865231284,
-      "lastSentGinfoTime": 1787865231284,
-      "lastSentRwTime": 1787864708171,
+      "status": "WAITING_GINFO",
+      "lastStateTime": 1787961393106,
+      "lastSentGinfoTime": 1787961393106,
+      "lastSentRwTime": 1787886954689,
       "botName": "Perez/Chuy",
-      "targetBot": "152132338622498@lid"
+      "targetBot": "268934259454148@lid"
     },
     "120363425869313503@g.us_5218787011417": {
       "enabled": true,
       "status": "WAITING_GINFO",
-      "lastStateTime": 1787794192966,
-      "lastSentGinfoTime": 1787794192966,
-      "lastSentRwTime": 1787790797528,
-      "botName": "Perez/Chuy",
+      "lastStateTime": 1787889068759,
+      "lastSentGinfoTime": 1787889068759,
+      "lastSentRwTime": 1787886954685,
+      "botName": "Remy Etienne",
       "targetBot": "152132338622498@lid"
     },
     "120363420819546616@g.us_5218787011417": {
       "enabled": true,
       "status": "WAITING_GINFO",
-      "lastStateTime": 1787794226971,
-      "lastSentGinfoTime": 1787794226971,
-      "lastSentRwTime": 1787790763246,
+      "lastStateTime": 1787889111394,
+      "lastSentGinfoTime": 1787889111394,
+      "lastSentRwTime": 1787887001151,
       "botName": "Remy Etienne",
       "targetBot": "268934259454148@lid"
     },
     "120363420819546616@g.us_59171018928": {
       "enabled": true,
-      "status": "IDLE",
-      "lastStateTime": 1787794226711,
-      "lastSentGinfoTime": 1787794226711,
-      "lastSentRwTime": 1787790763230,
+      "status": "WAITING_GINFO",
+      "lastStateTime": 1787889112356,
+      "lastSentGinfoTime": 1787889112356,
+      "lastSentRwTime": 1787887001150,
       "botName": "Remy Etienne",
       "targetBot": "268934259454148@lid"
     },
@@ -90,6 +90,24 @@
       "lastSentRwTime": 0,
       "botName": "",
       "targetBot": ""
+    },
+    "120363426599179122@g.us_5215656953441": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787886107504,
+      "lastSentGinfoTime": 1787886098626,
+      "lastSentRwTime": 1787886107504,
+      "botName": "Perez/Chuy",
+      "targetBot": "152132338622498@lid"
+    },
+    "120363426599179122@g.us_5218787011417": {
+      "enabled": false,
+      "status": "IDLE",
+      "lastStateTime": 1787886107503,
+      "lastSentGinfoTime": 1787886098697,
+      "lastSentRwTime": 1787886107503,
+      "botName": "Perez/Chuy",
+      "targetBot": "152132338622498@lid"
     }
   }
 }

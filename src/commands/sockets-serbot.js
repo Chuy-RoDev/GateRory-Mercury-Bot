@@ -172,8 +172,8 @@ export async function roryJadiBot(options) {
             const subUserJid = sock.user.id.split(':')[0]
             const botName = sock.user.name || sock.user.verifiedName || 'Bot'
 
-            global.conns.push({ sock, subId: userId, jid: subUserJid, name: botName, uptime: Date.now() })
-            console.log(chalk.hex('#00FFFF')(`\n[ SUB-BOT ] `) + chalk.hex('#FFFFFF')(`+${subUserJid} Conectado correctamente.`))
+             const cleanJid = subUserJid.replace(/[^0-9]/g, '')
+             global.conns.push({ sock, subId: userId, jid: cleanJid, name: botName, uptime: Date.now() })
 
             if (fromCommand && m && m.chat) {
                 const botname = global.botname || 'Rory Mercury'
