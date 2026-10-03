@@ -9,9 +9,11 @@ import ws from "ws"
 
 const { proto } = (await import("@whiskeysockets/baileys")).default
 
+// [ ⚙️ UTILIDADES GENERALES ]
+// Funciones básicas para que el código fluya: validar números, hacer pausas (delay) 
+// y una caché para no saturar al bot pidiendo la info de los grupos a cada rato.
 const isNumber = x => typeof x === "number" && !isNaN(x)
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(resolve, ms))
-
 const groupMetadataCache = new Map()
 
 export async function handler(chatUpdate) {
@@ -23,11 +25,15 @@ export async function handler(chatUpdate) {
     let m = chatUpdate.messages[chatUpdate.messages.length - 1]
     if (!m) return
 
-    // BOZAL ABSOLUTO PARA SUB-BOTS: Si escriben /autorw, solo el principal actúa
-    if (m.text && /^[#./!]?autorw/i.test(m.text.trim())) {
-        const currentBotDigits = String(this.user?.jid || this.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '')
-        const mainBotDigits = String(global.conn?.user?.jid || global.conn?.user?.id || '').split('@')[0].split(':')[0].replace(/[^0-9]/g, '')
-        if (currentBotDigits !== mainBotDigits) return
+    // [ 🗂️ NORMALIZACIÓN Y BASE DE DATOS ]
+    // Limpiamos los JIDs para quedarnos solo con los números reales (sin @lid o @s.whatsapp.net).
+    // Luego revisamos la base de datos: si el usuario, el chat o el bot no existen,
+    // los registramos automáticamente con sus valores por defecto para que no explote nada "Si explota algo informalo al dev XDDDDDD".
+    const parseNum = v => {
+        if (!v) return ""
+        const str = Array.isArray(v) ? v[0] : v
+        const base = String(str).split('@')[0].split(':')[0]
+        return base.replace(/[^0-9]/g, "")
     }
 
     if (global.db.data == null) await global.loadDatabase()
@@ -53,14 +59,69 @@ export async function handler(chatUpdate) {
         const chat = db.chats[mChat]
         const settings = db.settings[this.user.jid]
 
-        // Normalización limpia de JID (corta :dispositivo y @servidor antes de filtrar dígitos)
-        const parseNum = v => {
-            if (!v) return ""
-            const str = Array.isArray(v) ? v[0] : v
-            const base = String(str).split('@')[0].split(':')[0]
-            return base.replace(/[^0-9]/g, "")
+    
+        const currentBotDigits = parseNum(this.user?.jid || this.user?.id)
+        const isSubBot = Boolean(this.isSubBot || this.isJadiBot);
+        const isMainBot = !isSubBot;
+
+        if (m.text && /^[#./!]?autorw/i.test(m.text.trim()) && isSubBot) return
+
+        const primaryDigits = parseNum(chat.primaryBot)
+        let isPrimary = false
+
+        if (primaryDigits) {
+            const isPrimaryAlive = (primaryDigits === parseNum(global.conn?.user?.jid)) || (Array.isArray(global.conns) && global.conns.some(c => parseNum(c.jid) === primaryDigits))
+            if (isPrimaryAlive) {
+                isPrimary = (currentBotDigits === primaryDigits)
+            } else {
+                chat.primaryBot = null
+                isPrimary = isMainBot
+            }
+        } else {
+            isPrimary = isMainBot
         }
 
+        const isExemptCmd = /^[#./!]?(setprimary|setprefix|prefix|rw|ginfo|c|claim|rollwaifu|autorw)(\s+|$)/i.test(m.text?.trim() || '')
+
+        if (m.text && !isExemptCmd) {
+            const textTrimmed = m.text.trim()
+            const startsWithStandardPrefix = /^[#./!]/i.test(textTrimmed)
+
+            if (!isPrimary) {
+                if (startsWithStandardPrefix) {
+                    return 
+                }
+
+                let subName = this.user?.name || this.user?.verifiedName || ''
+                if (Array.isArray(global.conns)) {
+                    const subData = global.conns.find(c => parseNum(c.jid) === currentBotDigits || c.sock === this)
+                    if (subData && subData.name) subName = subData.name
+                }
+
+                const cleanName = String(subName).trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+                let myPrefixes = []                        // ← CAMBIO: `const` a `let`
+                if (this.customPrefix) {                   // ← NUEVA
+                    myPrefixes = [this.customPrefix]       // ← NUEVA
+                    } else {                                   // ← NUEVA
+                    if (cleanName.length > 0) {
+                        myPrefixes.push(`${cleanName[0]}/`) 
+                        myPrefixes.push(`${cleanName}/`)    
+    }
+}                                          // ← CIERRA NUEVO ELSE
+                const matchedPrefix = myPrefixes.find(p => textTrimmed.toLowerCase().startsWith(p))
+
+                if (!matchedPrefix) {
+                    return 
+                }
+
+                m.text = '/' + textTrimmed.slice(matchedPrefix.length).trim()
+            }
+        }
+
+        // [ PERMISOS Y METADATOS DEL GRUPO ]
+        // Checamos los rangos: quién es dueño, quién es premium, y si el mensaje es nuestro.
+        // Si estamos en un grupo, sacamos la lista de participantes de la caché (o de Baileys si no está)
+        // para ver quiénes son los admins y superadmins "Si modificas algo y se daña ya tu sabe, vete al github y modificalo :v".
         const isROwner = global.owner.some(num => {
             const clean = parseNum(num)
             return clean + "@s.whatsapp.net" === sender || clean + "@lid" === sender
@@ -128,82 +189,14 @@ export async function handler(chatUpdate) {
 
         if (!m.isGroup) {
             const cmdPermitidos = /^[./!#]?(restart|update|join|reload|code|qr|jadibot|subbot|ping|estado|status|infobot|help|menu)$/i
-            if (!isOwner && !cmdPermitidos.test(m.text)) return
+            if (!isOwner && !cmdPermitidos.test(m.text) && isMainBot) return
         }
 
-        // SISTEMA DE BOT PRIMARIO Y PREFIJOS DINÁMICOS
-        let isCommandAllowed = true
-
-        if (m.isGroup && m.text) {
-            const currentBotDigits = parseNum(this.user?.jid || this.user?.id)
-            const mainBotDigits = parseNum(global.conn?.user?.jid || global.conn?.user?.id)
-            const primaryDigits = parseNum(chat.primaryBot)
-
-            const currentSub = Array.isArray(global.conns) ? global.conns.find(c => {
-                const cJidClean = parseNum(c.jid)
-                const cSubIdClean = parseNum(c.subId)
-                return currentBotDigits === cJidClean || currentBotDigits === cSubIdClean
-            }) : null
-
-            if (currentSub) {
-                console.log(`[ DEBUG ] Found subbot: ${currentSub.name}, digits: ${parseNum(currentSub.subId)}`)
-            }
-
-            const botRawName = currentSub?.name || currentSub?.notify || this.user?.name || (currentBotDigits === mainBotDigits ? global.botname : '') || global.botname || ''
-
-            const botPrefixesSet = new Set()
-            if (currentSub?.prefix) {
-                const cp = currentSub.prefix.trim().toLowerCase()
-                botPrefixesSet.add(cp.endsWith('/') ? cp : `${cp}/`)
-            }
-            if (botRawName) {
-                const parts = String(botRawName).toLowerCase().split(/[\s/_\-]+/).map(p => p.replace(/[^a-z0-9]/g, '')).filter(Boolean)
-                for (const p of parts) {
-                    botPrefixesSet.add(`${p[0]}/`)
-                    botPrefixesSet.add(`${p}/`)
-                }
-            }
-            const myPrefixes = Array.from(botPrefixesSet)
-
-            let isPrimary = false
-            if (primaryDigits) {
-                const isPrimaryInGroup = participants.some(p => [p.jid, p.id, p.lid].map(parseNum).includes(primaryDigits))
-                const isPrimaryAlive = (primaryDigits === mainBotDigits) || (Array.isArray(global.conns) && global.conns.some(c => {
-                    const isAlive = c.sock?.ws?.socket?.readyState !== ws.CLOSED
-                    const cDigits = [c.jid, c.subId, c.sock?.user?.id, c.sock?.user?.jid].map(parseNum)
-                    return isAlive && cDigits.includes(primaryDigits)
-                }))
-
-                if (isPrimaryInGroup && isPrimaryAlive) {
-                    isPrimary = (currentBotDigits === primaryDigits)
-                } else {
-                    chat.primaryBot = null
-                    isPrimary = (currentBotDigits === mainBotDigits)
-                }
-            } else {
-                isPrimary = (currentBotDigits === mainBotDigits)
-            }
-
-            // Exención para comandos de administración y gacha para evitar bloqueos
-            const isExemptCmd = /^[#./!]?(setprimary|setprefix|prefix|rw|ginfo|c|claim|rollwaifu|autorw)(\s+|$)/i.test(m.text.trim())
-
-            if (isExemptCmd) {
-                isCommandAllowed = true
-            } else {
-                const matchedNamedPrefix = myPrefixes.find(p => m.text.toLowerCase().startsWith(p.toLowerCase()))
-                const isOtherBotPrefix = !matchedNamedPrefix && /^[a-z0-9]+\//i.test(m.text)
-
-                if (matchedNamedPrefix) {
-                    m.text = '/' + m.text.slice(matchedNamedPrefix.length).trim()
-                    isCommandAllowed = true
-                } else if (isOtherBotPrefix) {
-                    isCommandAllowed = false
-                } else {
-                    isCommandAllowed = isPrimary
-                }
-            }
-        }
-
+        // [ Ola) ]
+        // El corazón del bot. Iteramos sobre todos los comandos cargados en memoria.
+        // Comprobamos si el texto encaja con algún plugin, validamos si el usuario no está baneado,
+        // si el chat permite usar bots, y si tiene el rango necesario (owner, admin, etc).
+        // Si pasa todo se le suma la experiencia al usuario y ejecutamos la función del plugin.
         for (const name in global.plugins) {
             const plugin = global.plugins[name]
             if (!plugin || plugin.disabled) continue
@@ -215,8 +208,6 @@ export async function handler(chatUpdate) {
 
             if (!opts["restrict"] && plugin.tags?.includes("admin")) continue
 
-            // Si el grupo tiene un prefijo asignado (chat.prefix), se usa exclusivamente ese.
-            // Si no tiene prefijo personalizado, usa la lista por defecto (global.prefix).
             const globalPrefixList = Array.isArray(global.prefix) ? global.prefix : (global.prefix ? [global.prefix] : ['/'])
             const combinedPrefixes = chat.prefix ? [chat.prefix] : globalPrefixList
 
@@ -241,7 +232,6 @@ export async function handler(chatUpdate) {
                 if (await plugin.before.call(this, m, { match, conn: this, participants, groupMetadata, userGroup, botGroup, isROwner, isOwner, isRAdmin, isAdmin, isBotAdmin, isPrems, chatUpdate, user, chat, settings })) continue
             }
 
-            if (!isCommandAllowed) continue
             if (typeof plugin !== "function" || !match) continue
 
             usedPrefix = match[0][0]
@@ -318,3 +308,6 @@ global.dfail = (type, m, conn) => {
     const msg = global.msg[type]
     if (msg) return conn.reply(m.chat, msg.replace('${comando}', global.comando), m).then(_ => m.react('✖️'))
 }
+
+
+

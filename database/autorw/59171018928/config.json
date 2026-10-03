@@ -19,6 +19,10 @@
       "lastSentRwTime": 1787883941330,
       "botName": "",
       "targetBot": "268934259454148@lid"
+    },
+    "120363428829166777@g.us": {
+      "enabled": true,
+      "minValor": 8000
     }
   }
 }

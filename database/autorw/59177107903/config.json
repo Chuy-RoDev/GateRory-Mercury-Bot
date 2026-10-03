@@ -1,0 +1,13 @@
+{
+  "minValor": 8000,
+  "groups": {
+    "120363428829166777@g.us": {
+      "enabled": true,
+      "minValor": 8000
+    },
+    "120363425869313503@g.us": {
+      "enabled": true,
+      "minValor": 8000
+    }
+  }
+}

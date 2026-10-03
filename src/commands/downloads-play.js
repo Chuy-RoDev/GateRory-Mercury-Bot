@@ -67,7 +67,7 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
         `╭─「 🎵 𝗬𝗼𝘂𝗧𝘂𝗯𝗲 」\n` +
         `│\n` +
         `│ ✦ Uso: *${usedPrefix + command} <nombre o link>*\n` +
-        `│ ✦ Ejemplo: *${usedPrefix + command} Canserbero*\n` +
+        `│ ✦ Ejemplo: *${usedPrefix + command} Menea tu chapa osiosi*\n` +
         `│\n` +
         `│ _Ingresa el nombre o link del video._\n` +
         `╰─────────────────`
@@ -142,5 +142,5 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
 
 handler.help = ['play <nombre o link>', 'ytmp4 <nombre o link>']
 handler.tags = ['descargas']
-handler.command = ['play', 'play2', 'ytmp3', 'ytmp4', 'playaudio']
+handler.command = ['play', 'play2', 'ytmp3', 'ytmp4', 'playaudio', 'ytaudio', 'mp4']
 export default handler

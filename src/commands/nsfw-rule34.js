@@ -6,7 +6,7 @@ const USER_ID = "5753302"
 // Función auxiliar para consultar la API
 const fetchPosts = async (tags) => {
     try {
-        const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=300&tags=${encodeURIComponent(tags)}&api_key=${API_KEY}&user_id=${USER_ID}`
+        const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=600&tags=${encodeURIComponent(tags)}&api_key=${API_KEY}&user_id=${USER_ID}`
         const res = await fetch(url, { 
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': 'application/json' } 
         })

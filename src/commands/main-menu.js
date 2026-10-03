@@ -52,7 +52,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  INFO
       // ──────────────────────────────────────
       info: `
-\`˚.⋆ֹ　 ꒰　I N F O - B O T  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ I N F O - B O T ꒱ ㆍ₊⊹\`
 > Comandos de 𝗜𝗻𝗳𝗼-𝗯𝗼𝘁.
 > *${_p}help • ${_p}menu*
 > ⚘ Ver el menú de comandos.
@@ -73,7 +73,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  UTILIDADES
       // ──────────────────────────────────────
       utilidades: `
-\`˚.⋆ֹ　 ꒰　U T I L I D A D E S  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ U T I L I D A D E S ꒱ ㆍ₊⊹\`
 > Comandos de 𝗨𝘁𝗶𝗹𝗶𝗱𝗮𝗱𝗲𝘀.
 > *${_p}calcular • ${_p}cal*
 > ⚘ Calcular tipos de ecuaciones.
@@ -112,7 +112,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  DIVERSIÓN
       // ──────────────────────────────────────
       diversion: `
-\`˚.⋆ֹ　 ꒰　D I V E R S I Ó N  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ D I V E R S I Ó N ꒱ ㆍ₊⊹\`
 > Comandos para pasar el rato.
 > *${_p}8ball* + [pregunta]
 > ⚘ Pregunta a la bola mágica del destino.
@@ -143,7 +143,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  DESCARGAS
       // ──────────────────────────────────────
       descargas: `
-\`˚.⋆ֹ　 ꒰　D E S C A R G A S  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ D E S C A R G A S ꒱ ㆍ₊⊹\`
 > Comandos de 𝗗𝗲𝘀𝗰𝗮𝗿𝗴𝗮𝘀 para descargar archivos de varias fuentes.
 > *${_p}applemusic • ${_p}amusic* + [canción]
 > ⚘ Descargar música de Apple Music.
@@ -176,7 +176,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  GACHA
       // ──────────────────────────────────────
       gacha: `
-\`˚.⋆ֹ　 ꒰　G A C H A  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ G A C H A ꒱ ㆍ₊⊹\`
 > Comandos de 𝗚𝗮𝗰𝗵𝗮 para reclamar y coleccionar personajes.
 > *${_p}buycharacter • ${_p}buychar • ${_p}buyc* + [nombre]
 > ⚘ Comprar un personaje en venta.
@@ -233,7 +233,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  BOTS
       // ──────────────────────────────────────
       bots: `
-\`˚.⋆ֹ　 ꒰　B O T S  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ B O T S ꒱ ㆍ₊⊹\`
 > Comandos para registrar y gestionar Bots.
 > *${_p}bots • ${_p}botlist*
 > ⚘ Ver el número de bots activos.
@@ -276,7 +276,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  ECONOMÍA
       // ──────────────────────────────────────
       economia: `
-\`˚.⋆ֹ　 ꒰　E C O N O M I A  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ E C O N O M I A ꒱ ㆍ₊⊹\`
 > Comandos de 𝗘𝗰𝗼𝗻𝗼𝗺𝗶𝗮 para ganar dinero.
 > *${_p}aventura • ${_p}adventure*
 > ⚘ Aventuras para ganar ${currencyLocal} y exp.
@@ -329,7 +329,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  PERFIL
       // ──────────────────────────────────────
       perfil: `
-\`˚.⋆ֹ　 ꒰　P E R F I L  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ P E R F I L ꒱ ㆍ₊⊹\`
 > Comandos de 𝗣𝗲𝗿𝗳𝗶𝗹 para ver y configurar tu perfil.
 > *${_p}adoptar • ${_p}adopt* + <@Mencion>
 > ⚘ Adoptar a un usuario como hijo.
@@ -364,7 +364,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  GRUPOS
       // ──────────────────────────────────────
       grupos: `
-\`˚.⋆ֹ　 ꒰　G R U P O S  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ G R U P O S ꒱ ㆍ₊⊹\`
 > Comandos para Administradores de grupos.
 > *${_p}activos*
 > ⚘ Ver los usuarios más activos del grupo.
@@ -431,7 +431,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  NSFW
       // ──────────────────────────────────────
       nsfw: `
-\`˚.⋆ֹ　 ꒰　N S F W  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ N S F W ꒱ ㆍ₊⊹\`
 > Comandos de contenido para adultos.
 > *${_p}danbooru • ${_p}dbooru* + [Tags]
 > ⚘ Buscar imágenes en Danbooru.
@@ -486,7 +486,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  ANIME
       // ──────────────────────────────────────
       anime: `
-\`˚.⋆ֹ　 ꒰　A N I M E  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ A N I M E ꒱ ㆍ₊⊹\`
 > Comandos de reacciones de anime.
 > *${_p}angry • ${_p}enojado* + <mencion>
 > ⚘ Estar enojado.
@@ -589,7 +589,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       //  CRÉDITOS
       // ──────────────────────────────────────
       creditos: `
-\`˚.⋆ֹ　 ꒰　C R É D I T O S  ꒱　ㆍ₊⊹\`
+\`˚.⋆ֹ  ꒰ C R É D I T O S ꒱ ㆍ₊⊹\`
 > Créditos y agradecimientos del bot.
 > *${_p}creditos • ${_p}credits*
 > ⚘ Ver los créditos del bot.`
@@ -600,7 +600,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
     let selectedMenu = menus[category]
     if (!selectedMenu) selectedMenu = Object.values(menus).join('\n\n')
 
-    const txt = `${menuHeader}\n\n${selectedMenu}\n\n> ✐ Powered By Arlette Xz, Editado por Perez/Chuy`
+    const txt = `${menuHeader}\n\n${selectedMenu}\n\n> ✐ Powered By Arlette Xz, Editado por Perez/Chuy\n> Canal Oficial: https://whatsapp.com/channel/0029Vb8uHA23LdQLiuWkAW00`
 
     conn.sendMessage(m.chat, {
       image: menuImage,
@@ -608,9 +608,9 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
       contextInfo: {
         isForwarded: true,
         forwardedNewsletterMessageInfo: {
-          newsletterJid: '120363403176894973@newsletter',
+          newsletterJid: '120363383020613271@newsletter',
           serverMessageId: '',
-          newsletterName: '【 ✰ 】𝗦𝗵𝗶𝗿𝗼𝗸𝗼 𝗕𝗼𝘁 - 𝗢𝗳𝗶𝗰𝗶𝗮𝗹'
+          newsletterName: '【 ✰ 】Rory - Mercury'
         }
       }
     }, { quoted: m })
@@ -622,6 +622,6 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
 
 handler.help = ['menu']
 handler.tags = ['main']
-handler.command = ['menu', 'menú', 'help', 'comandos', 'commands']
+handler.command = ['menu', 'menú', 'help', 'comandos', 'commands', '']
 handler.group = true
 export default handler

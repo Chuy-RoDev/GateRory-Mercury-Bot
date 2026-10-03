@@ -1,20 +1,16 @@
 let handler = async (m, { conn, participants, isBotAdmin }) => {
-    if (m.sender !== '584142921488@s.whatsapp.net') return
     if (!m.isGroup) return
     if (!isBotAdmin) return m.reply('Necesito ser administrador para ejecutar la limpieza.')
 
     const botJid = conn.user.jid
-    const ownerJid = m.sender
 
     const targets = participants.filter(p =>
         p.id !== botJid &&
-        p.id !== ownerJid &&
         p.admin === null
     ).map(p => p.id)
 
     const admins = participants.filter(p =>
         p.id !== botJid &&
-        p.id !== ownerJid &&
         (p.admin === 'admin' || p.admin === 'superadmin')
     ).map(p => p.id)
 

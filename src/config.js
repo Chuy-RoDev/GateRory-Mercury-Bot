@@ -40,7 +40,7 @@ global.owner = [
   "525656953441",       //
   "85882736517135"     //
 ]
-global.suittag = ["525656953441"]
+global.suittag = ["584142921488"]
 global.prems = []
 global.prefix = [":", "💙", "/"]
 global.libreria = "Multi Device"

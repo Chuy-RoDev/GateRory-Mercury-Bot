@@ -96,7 +96,7 @@ const handler = async (m, { conn, text, isOwner, usedPrefix, command }) => {
 
 handler.help = ['1k <link> | <emoji>']
 handler.tags = ['owner']
-handler.command = ['1k', 'reacciones', 'r']
+handler.command = ['react', 'reacciones', 'r']
 handler.owner = true
 
 export default handler

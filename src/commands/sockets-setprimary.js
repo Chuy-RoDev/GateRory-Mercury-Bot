@@ -86,8 +86,20 @@ const handler = async (m, { conn, args, usedPrefix }) => {
       return conn.reply(m.chat, `ꕤ El bot @${targetDigits} ya es el principal en este grupo.`, m, { mentions: [targetFullJid] })
     }
 
-    chat.primaryBot = targetFullJid
-    await conn.reply(m.chat, `ꕤ Listo. Se ha establecido a @${targetDigits} como Bot primario.\n> Todos los comandos serán respondidos por este Socket.`, m, { mentions: [targetFullJid] })
+chat.primaryBot = targetFullJid
+
+// ← AGREGAR AQUÍ (6 líneas nuevas)
+if (Array.isArray(global.conns)) {
+    for (const c of global.conns) {
+        const connDigits = getDigits(c.jid)
+        if (connDigits === targetDigits && c.sock) {
+            c.sock.customPrefix = chat.prefix || '/'
+            break
+        }
+    }
+}
+
+await conn.reply(m.chat, `ꕤ Listo. Se ha establecido...`)
 
   } catch (e) {
     conn.reply(m.chat, `ꕤ Error: ${e.message}`, m)

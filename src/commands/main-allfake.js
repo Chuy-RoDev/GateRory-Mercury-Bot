@@ -9,7 +9,7 @@ handler.all = async function (m) {
     global.fecha = d.toLocaleDateString('es', {day: 'numeric', month: 'numeric', year: 'numeric'})
     global.tiempo = d.toLocaleString('en-US', {hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true})
     global.nombre = m.pushName || 'Usuario'
-    global.packsticker = `┊ Shiroko Team\n⤷ https://github.com/Arlette-Xz\n\n┊INFO\n ⤷ speed3xz.bot.nu/soporte`
+    global.packsticker = `┊ Shiroko Team\n⤷ https://github.com/Chuy-RoDev/GateRory-Mercury-Bot\n\n┊INFO\n ⤷ speed3xz.bot.nu/soporte`
     global.packsticker2 = `┊Bot\n┊⤷${global.botname} \n\n┊Usuario:\n┊⤷${nombre}`
     
     global.rcanal = {}
