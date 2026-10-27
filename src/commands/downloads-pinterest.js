@@ -1,21 +1,28 @@
 import axios from 'axios'
 import cheerio from 'cheerio'
+import { sticker } from '../../lib/sticker.js'
 
 let handler = async (m, { conn, text, args, usedPrefix }) => {
-    if (!text) return m.reply(`ꕤ Por favor, ingresa lo que deseas buscar por Pinterest.`)
-    
+    if (!text) return m.reply(`ꕤ Por favor, ingresa lo que deseas buscar por Pinterest.\n> Tip: agrega .s al final para recibir stickers.`)
+
+    // Detectar sufijo .s al final (modo sticker, case-insensitive)
+    const wantsSticker = /\.s$/i.test(text.trim())
+    const query = text.trim().replace(/\.s$/i, '').trim()
+
+    if (!query) return m.reply(`ꕤ Escribe algo para buscar en Pinterest.`)
+
     try {
-        if (text.includes("https://")) {
-            let i = await dl(args[0])
+        if (query.includes("https://")) {
+            let i = await dl(query)
             let isVideo = i.download.includes(".mp4")
             await conn.sendMessage(m.chat, { [isVideo ? "video" : "image"]: { url: i.download }, caption: i.title }, { quoted: m })
         } else {
-            const results = await pins(text)
+            const results = await pins(query)
             if (!results.length) {
-                return m.reply(`ꕥ No se encontraron resultados para "${text}".`)
+                return m.reply(`ꕥ No se encontraron resultados para "${query}".`)
             }
-            
-            // --- MODIFICACIÓN ESENCIAL: MEZCLA Y SELECCIÓN DE 10 ---
+
+            // --- MEZCLA Y SELECCIÓN DE 10 ---
             const shuffled = results.sort(() => 0.5 - Math.random())
             const maxResults = Math.min(shuffled.length, 10)
             const medias = []
@@ -27,9 +34,38 @@ let handler = async (m, { conn, text, args, usedPrefix }) => {
                 })
             }
 
-            const caption = `\`❏ Descarga - Pinterest\`\n──────────────────\n> ✰ *Tema:* ${text}\n> ✧ Encontré ${medias.length} imágenes aleatorias para ti.`
-            
-            await conn.sendSylphy(m.chat, medias, { caption, quoted: m })
+            const caption = `\`❏ Descarga - Pinterest\`\n──────────────────\n> ✰ *Tema:* ${query}\n> ✧ Encontré ${medias.length} ${wantsSticker ? 'stickers' : 'imágenes'} aleatorias para ti.`
+
+            if (wantsSticker) {
+                // Modo sticker: convertir cada imagen con el mismo metodo del bot
+                await conn.sendMessage(m.chat, { text: caption }, { quoted: m })
+
+                const pack = global.packsticker
+                const author = global.packsticker2
+
+                let enviados = 0
+                for (const media of medias) {
+                    try {
+                        const res = await axios.get(media.data.url, {
+                            responseType: 'arraybuffer',
+                            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                        })
+                        const buffer = Buffer.from(res.data)
+                        const stickerBuffer = await sticker(buffer, false, pack, author)
+                        if (stickerBuffer && Buffer.isBuffer(stickerBuffer)) {
+                            await conn.sendMessage(m.chat, { sticker: stickerBuffer }, { quoted: m })
+                            enviados++
+                            await new Promise(r => setTimeout(r, 1200))
+                        }
+                    } catch (e) {
+                        continue
+                    }
+                }
+
+                if (enviados === 0) return m.reply(`ꕤ No pude convertir ninguna imagen a sticker, intenta de nuevo.`)
+            } else {
+                await conn.sendSylphy(m.chat, medias, { caption, quoted: m })
+            }
         }
     } catch (e) {
         m.reply(`⚠︎ Se ha producido un problema.\n\n` + e)

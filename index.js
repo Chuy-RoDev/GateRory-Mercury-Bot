@@ -148,7 +148,9 @@ loadDatabase().then(() => {
     console.log(chalk.hex('#00FFFF')('✓ Base de datos cargada correctamente'))
 
     // Reconexión de Sub-Bots en segundo plano al iniciar
-    global.rutaJadiBot = join(__dirname, `./${global.jadi}`)
+    // FIX: global.jadi ya es ruta absoluta (path.resolve más arriba); el join anterior
+    // generaba una ruta anidada inexistente y la reconexión nunca encontraba las sesiones
+    global.rutaJadiBot = global.jadi
     if (existsSync(global.rutaJadiBot)) {
         const readRutaJadiBot = readdirSync(global.rutaJadiBot)
         if (readRutaJadiBot.length > 0) {

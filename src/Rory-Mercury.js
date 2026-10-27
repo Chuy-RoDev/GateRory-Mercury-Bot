@@ -9,8 +9,8 @@ import ws from "ws"
 
 const { proto } = (await import("@whiskeysockets/baileys")).default
 
-// [ ⚙️ UTILIDADES GENERALES ]
-// Funciones básicas para que el código fluya: validar números, hacer pausas (delay) 
+// [ UTILIDADES GENERALES ]
+// Funciones básicas para que el código fluya: validar números, hacer pausas (delay)
 // y una caché para no saturar al bot pidiendo la info de los grupos a cada rato.
 const isNumber = x => typeof x === "number" && !isNaN(x)
 const delay = ms => isNumber(ms) && new Promise(resolve => setTimeout(resolve, ms))
@@ -25,7 +25,7 @@ export async function handler(chatUpdate) {
     let m = chatUpdate.messages[chatUpdate.messages.length - 1]
     if (!m) return
 
-    // [ 🗂️ NORMALIZACIÓN Y BASE DE DATOS ]
+    // [ NORMALIZACIÓN Y BASE DE DATOS ]
     // Limpiamos los JIDs para quedarnos solo con los números reales (sin @lid o @s.whatsapp.net).
     // Luego revisamos la base de datos: si el usuario, el chat o el bot no existen,
     // los registramos automáticamente con sus valores por defecto para que no explote nada "Si explota algo informalo al dev XDDDDDD".
@@ -59,10 +59,10 @@ export async function handler(chatUpdate) {
         const chat = db.chats[mChat]
         const settings = db.settings[this.user.jid]
 
-    
         const currentBotDigits = parseNum(this.user?.jid || this.user?.id)
-        const isSubBot = Boolean(this.isSubBot || this.isJadiBot);
-        const isMainBot = !isSubBot;
+        const mainBotDigits = parseNum(global.conn?.user?.jid || global.conn?.user?.id)
+        const isSubBot = Boolean(this.isSubBot || this.isJadiBot) || Boolean(mainBotDigits && currentBotDigits !== mainBotDigits)
+        const isMainBot = !isSubBot
 
         if (m.text && /^[#./!]?autorw/i.test(m.text.trim()) && isSubBot) return
 
@@ -70,7 +70,8 @@ export async function handler(chatUpdate) {
         let isPrimary = false
 
         if (primaryDigits) {
-            const isPrimaryAlive = (primaryDigits === parseNum(global.conn?.user?.jid)) || (Array.isArray(global.conns) && global.conns.some(c => parseNum(c.jid) === primaryDigits))
+            // FIX: también revisamos c.user?.jid (los sockets Baileys no siempre exponen .jid directo)
+            const isPrimaryAlive = (primaryDigits === parseNum(global.conn?.user?.jid)) || (Array.isArray(global.conns) && global.conns.some(c => parseNum(c.user?.jid) === primaryDigits || parseNum(c.jid) === primaryDigits))
             if (isPrimaryAlive) {
                 isPrimary = (currentBotDigits === primaryDigits)
             } else {
@@ -81,6 +82,9 @@ export async function handler(chatUpdate) {
             isPrimary = isMainBot
         }
 
+        // [ PREFIJOS Y DETECCIÓN DE COMANDOS ]
+        // El bot principal responde al prefijo estándar (/ # . !). Los subbots solo responden
+        // a su prefijo propio: inicial del nombre o nombre completo + "/" (ej: "P/menu" o "perez/menu").
         const isExemptCmd = /^[#./!]?(setprimary|setprefix|prefix|rw|ginfo|c|claim|rollwaifu|autorw)(\s+|$)/i.test(m.text?.trim() || '')
 
         if (m.text && !isExemptCmd) {
@@ -89,32 +93,67 @@ export async function handler(chatUpdate) {
 
             if (!isPrimary) {
                 if (startsWithStandardPrefix) {
-                    return 
+                    return
                 }
 
-                let subName = this.user?.name || this.user?.verifiedName || ''
+                // [ RESOLUCIÓN DEL NOMBRE DEL SUBBOT ]
+                // Probamos varias fuentes porque ninguna es 100% confiable:
+                // 1) propiedades custom que el manager le haya puesto a la conexión
+                // 2) el objeto dentro de global.conns (por referencia o por JID)
+                // 3) el nombre de perfil de WhatsApp de la cuenta subbot
+                let subName = this.nombreSubbot || this.subibName || this.botName ||
+                    this.user?.name || this.user?.verifiedName || ''
+
                 if (Array.isArray(global.conns)) {
-                    const subData = global.conns.find(c => parseNum(c.jid) === currentBotDigits || c.sock === this)
-                    if (subData && subData.name) subName = subData.name
+                    const subData = global.conns.find(c =>
+                        c === this ||
+                        c.sock === this ||
+                        (c.user?.jid && parseNum(c.user.jid) === currentBotDigits) ||
+                        (c.jid && parseNum(c.jid) === currentBotDigits)
+                    )
+                    if (subData) {
+                        subName = subData.nombreSubbot || subData.subibName || subData.botName ||
+                            subData.name || subData.user?.name || subData.user?.verifiedName || subName
+                    }
                 }
 
                 const cleanName = String(subName).trim().toLowerCase().replace(/[^a-z0-9]/g, '')
-                let myPrefixes = []                        // ← CAMBIO: `const` a `let`
-                if (this.customPrefix) {                   // ← NUEVA
-                    myPrefixes = [this.customPrefix]       // ← NUEVA
-                    } else {                                   // ← NUEVA
-                    if (cleanName.length > 0) {
-                        myPrefixes.push(`${cleanName[0]}/`) 
-                        myPrefixes.push(`${cleanName}/`)    
-    }
-}                                          // ← CIERRA NUEVO ELSE
-                const matchedPrefix = myPrefixes.find(p => textTrimmed.toLowerCase().startsWith(p))
 
-                if (!matchedPrefix) {
-                    return 
+                let myPrefixes = []
+                if (this.customPrefix) {
+                    // Si el customPrefix no termina en "/", lo agregamos.
+                    // Evita que customPrefix="P" convierta "P/menu" en "//menu"
+                    const cp = String(this.customPrefix)
+                    myPrefixes.push(cp.endsWith('/') ? cp : cp + '/')
+                }
+                if (cleanName.length > 0) {
+                    myPrefixes.push(`${cleanName[0]}/`)
+                    if (cleanName.length > 1) myPrefixes.push(`${cleanName}/`)
                 }
 
-                m.text = '/' + textTrimmed.slice(matchedPrefix.length).trim()
+                // Log de diagnóstico: máximo 1 línea cada 30s por conexión
+                if (!this.__lastPrefixLog || Date.now() - this.__lastPrefixLog > 30000) {
+                    this.__lastPrefixLog = Date.now()
+                    console.log(chalk.magenta(`[SUBBOT ${currentBotDigits || '?'}] nombre="${subName}" limpio="${cleanName}" prefijos=${JSON.stringify(myPrefixes)} msg="${textTrimmed.slice(0, 25)}"`))
+                }
+
+                let matchedPrefix = myPrefixes.find(p => textTrimmed.toLowerCase().startsWith(p.toLowerCase()))
+
+                // Último recurso: si no pudimos resolver el nombre (prefijos vacíos),
+                // aceptamos cualquier "letra/" para que el subbot nunca quede mudo.
+                // El log de arriba dice el nombre real para fijarlo bien después.
+                if (!matchedPrefix && myPrefixes.length === 0 && /^[a-z0-9]\//i.test(textTrimmed)) {
+                    matchedPrefix = textTrimmed.slice(0, 2)
+                }
+
+                if (!matchedPrefix) {
+                    return
+                }
+
+                // Reescribimos al formato estándar, limpiando cualquier "/" ":" "#" suelto
+                const resto = textTrimmed.slice(matchedPrefix.length).replace(/^[\s/:.#!]+/, '')
+                if (!resto) return
+                m.text = '/' + resto
             }
         }
 
@@ -192,7 +231,7 @@ export async function handler(chatUpdate) {
             if (!isOwner && !cmdPermitidos.test(m.text) && isMainBot) return
         }
 
-        // [ Ola) ]
+        // [ EJECUCIÓN DE PLUGINS ]
         // El corazón del bot. Iteramos sobre todos los comandos cargados en memoria.
         // Comprobamos si el texto encaja con algún plugin, validamos si el usuario no está baneado,
         // si el chat permite usar bots, y si tiene el rango necesario (owner, admin, etc).
@@ -220,10 +259,10 @@ export async function handler(chatUpdate) {
             }
 
             if (m.text) {
-                const prefixRegex = pluginPrefix instanceof RegExp 
-                    ? pluginPrefix 
+                const prefixRegex = pluginPrefix instanceof RegExp
+                    ? pluginPrefix
                     : new RegExp(`^(${[].concat(pluginPrefix).filter(Boolean).map(p => strRegex(p)).join('|')})`)
-                
+
                 const execResult = prefixRegex.exec(m.text)
                 if (execResult) match = [execResult, prefixRegex]
             }
@@ -308,6 +347,3 @@ global.dfail = (type, m, conn) => {
     const msg = global.msg[type]
     if (msg) return conn.reply(m.chat, msg.replace('${comando}', global.comando), m).then(_ => m.react('✖️'))
 }
-
-
-
