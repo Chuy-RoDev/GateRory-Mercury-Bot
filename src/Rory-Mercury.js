@@ -279,10 +279,13 @@ export async function handler(chatUpdate) {
 
             if (typeof plugin !== "function" || !match) continue
 
-            // FIX: antes usaba match[0][0] (solo el primer carácter). Con el prefijo "💙"
-            // eso toma medio emoji (surrogate) y con prefijos custom de varios caracteres
-            // (ej: "//") cortaba mal, y ningún comando funcionaba con ese prefijo.
-            usedPrefix = match[0]
+            // FIX: match = [execResult, regex] — match[0] es el RESULTADO DE EXEC (un array
+            // ['/', grupo1, ..., index, input]), NO el prefijo. El prefijo como STRING es
+            // match[0][0] (coincidencia completa: "/", "//" o "💙" enteros, nunca medio emoji).
+            // Antes se asignaba el array entero: usedPrefix.length daba el nº de elementos del
+            // array (no el largo del prefijo), el comando se cortaba mal y el menú renderizaba
+            // el array como "/,/,/". Con esto usedPrefix vuelve a ser un string correcto.
+            usedPrefix = match[0][0]
             const noPrefix = m.text.slice(usedPrefix.length).trim()
             let [command, ...args] = noPrefix.split(/\s+/).filter(v => v)
             command = (command || "").toLowerCase()
