@@ -2,7 +2,11 @@ import fetch from 'node-fetch'
 import Jimp from 'jimp'
 
 const handler = async (m, { conn, command, usedPrefix, text }) => {
-const isSubBots = [conn.user.jid, ...global.owner.map(([number]) => `${number}@s.whatsapp.net`)].includes(m.sender)
+// FIX: global.owner es un array de STRINGS; el destructuring ([number]) tomaba el primer
+// carácter ("5") y ningún owner podía usar setpfp/setbio/setusername. Comparación por dígitos.
+const digits = j => String(j || '').replace(/\D/g, '')
+const ownerDigits = (Array.isArray(global.owner) ? global.owner : []).map(o => Array.isArray(o) ? String(o[0]) : String(o)).filter(Boolean)
+const isSubBots = ownerDigits.includes(digits(conn.user?.id || conn.user?.jid)) || ownerDigits.includes(digits(m.sender))
 if (!isSubBots) return m.reply(`ꕤ El comando *${command}* solo puede ser ejecutado por el Socket.`)
 try {
 const value = text ? text.trim() : ''

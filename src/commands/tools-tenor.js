@@ -1,7 +1,10 @@
 import fetch from 'node-fetch'
 import * as baileys from '@whiskeysockets/baileys'
 
-async function sendAlbumMessage(jid, medias, options = {}) {
+// FIX: dentro de esta función "conn" no existía y resolvía a global.conn (el bot
+// PRINCIPAL) → en modo Sub-Bot los álbumes salían desde la cuenta equivocada.
+// Ahora la conexión se pasa por parámetro.
+async function sendAlbumMessage(conn, jid, medias, options = {}) {
 if (typeof jid !== "string") { throw new TypeError(`jid must be string, received: ${jid}`) }
 if (!Array.isArray(medias) || medias.length < 2) { throw new RangeError("Minimum 2 media required") }
 for (const media of medias) {
@@ -38,7 +41,7 @@ const gifs = json.data
 if (!gifs || gifs.length < 2) { await m.react('✖️'); return m.reply('ꕤ No se encontraron resultados.') }
 const maxItems = Math.min(gifs.length, 10)
 const medias = gifs.slice(0, maxItems).map(gif => ({ type: 'video', data: { url: gif.mp4 } }))
-await sendAlbumMessage(m.chat, medias, { caption: `❀ G I F - S E A R C H ❀\n\n✦ Busqueda: ${text}\n✧ Resultados: ${maxItems}`, quoted: m })
+await sendAlbumMessage(conn, m.chat, medias, { caption: `❀ G I F - S E A R C H ❀\n\n✦ Busqueda: ${text}\n✧ Resultados: ${maxItems}`, quoted: m })
 await m.react('✔️')
 } catch (e) {
 await m.react('✖️')

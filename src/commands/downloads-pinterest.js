@@ -14,6 +14,9 @@ let handler = async (m, { conn, text, args, usedPrefix }) => {
     try {
         if (query.includes("https://")) {
             let i = await dl(query)
+            // FIX: dl() devuelve { msg } cuando falla; antes i.download.includes lanzaba
+            // TypeError y el usuario veía "Se ha producido un problema" sin contexto.
+            if (i.msg || !i.download) return m.reply(`ꕥ ${i.msg || 'No pude descargar ese pin, inténtalo de nuevo.'}`)
             let isVideo = i.download.includes(".mp4")
             await conn.sendMessage(m.chat, { [isVideo ? "video" : "image"]: { url: i.download }, caption: i.title }, { quoted: m })
         } else {
@@ -64,7 +67,15 @@ let handler = async (m, { conn, text, args, usedPrefix }) => {
 
                 if (enviados === 0) return m.reply(`ꕤ No pude convertir ninguna imagen a sticker, intenta de nuevo.`)
             } else {
-                await conn.sendSylphy(m.chat, medias, { caption, quoted: m })
+                // FIX: sendSylphy lanza RangeError con 1 sola imagen (mínimo 2) y además
+                // IGNORA options.caption (solo usa medias[i].caption). Casos cubiertos:
+                // 1 resultado → envío simple con caption; álbum → caption en el primer media.
+                if (medias.length === 1) {
+                    await conn.sendMessage(m.chat, { image: { url: medias[0].data.url }, caption }, { quoted: m })
+                } else {
+                    medias[0].caption = caption
+                    await conn.sendSylphy(m.chat, medias, { quoted: m })
+                }
             }
         }
     } catch (e) {

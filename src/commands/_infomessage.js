@@ -1,4 +1,11 @@
-  import { WAMessageStubType } from '@whiskeysockets/baileys'
+import { WAMessageStubType } from '@whiskeysockets/baileys'
+// FIX: fs y path se usaban sin importarlos (ReferenceError silencioso en stub 2)
+import fs from 'fs'
+import path from 'path'
+
+// FIX: helper para comparar JIDs por dígitos (Baileys 7 no siempre expone user.jid)
+const digitsOf = j => String(j || '').replace(/\D/g, '')
+
 const lidCache = new Map()
 const handler = m => m
 
@@ -6,7 +13,9 @@ handler.before = async function (m, { conn, participants }) {
     if (!m.messageStubType || !m.isGroup) return
     
     const primaryBot = global.db.data.chats[m.chat]?.primaryBot
-    if (primaryBot && conn.user.jid !== primaryBot) return
+    // FIX: conn.user.jid es undefined en sockets Sub-Bot frescos (Baileys 7 usa user.id);
+    // además se comparaba el JID completo contra el guardado. Ahora por dígitos y con ?.
+    if (primaryBot && digitsOf(conn.user?.id || conn.user?.jid) !== digitsOf(primaryBot)) return
     
     const chat = global.db.data.chats[m.chat]
     if (!chat?.detect) return
@@ -37,7 +46,9 @@ handler.before = async function (m, { conn, participants }) {
 
 async function handleStub2(m, { conn }) {
     const uniqid = m.chat.split('@')[0]
-    const sessionPath = `./${sessions}/`
+    // FIX: "sessions" era una variable inexistente (ReferenceError silencioso). La carpeta
+    // de sesiones es global.jadi / global.rutaJadiBot.
+    const sessionPath = String(global.rutaJadiBot || global.jadi || 'Sessions/SubBot')
     
     try {
         const files = await fs.promises.readdir(sessionPath)
@@ -47,7 +58,7 @@ async function handleStub2(m, { conn }) {
         
         await Promise.all(deletePromises)
     } catch (e) {
-
+        console.error('[INFOMESSAGE] Error limpiando sesión (stub 2):', e.message)
     }
 }
 
@@ -123,16 +134,20 @@ async function sendStubMessage(chat, text, mentionedJid, extra = {}) {
             mentionedJid: mentionedJid.filter(Boolean),
             isForwarded: true,
             forwardedNewsletterMessageInfo: {
-                newsletterJid: channelRD.id,
+                // FIX: channelRD no existe en este repo → ReferenceError que abortaba el
+                // procesamiento. Los globals reales son global.ch.ch1 / global.canalNombre.
+                newsletterJid: global.ch?.ch1 || '',
                 serverMessageId: '',
-                newsletterName: channelRD.name
+                newsletterName: global.canalNombre || global.botname || ''
             },
             externalAdReply: {
                 title: "⸝⸝　 ꒰　A V I S O　꒱  ⁞　ˎˊ˗",
-                body: textbot,
+                body: global.textbot || '',
                 previewType: "PHOTO",
-                thumbnail: await fetch(icono).then(res => res.buffer()).catch(() => null),
-                sourceUrl: redes
+                // FIX: "redes" no existe → ReferenceError. Y fetch(icono) era inválido
+                // porque global.icono ya es un Buffer (se puede pasar directo).
+                thumbnail: global.icono || null,
+                sourceUrl: global.github || global.linkrepo || ''
             }
         }
     }
@@ -156,13 +171,20 @@ async function resolveLidToRealJid(lid, conn, groupChatId) {
         if (!metadata?.participants) return inputJid
 
         const lidToFind = inputJid.split("@")[0]
-        
-        for (const participant of metadata.participants) {
+
+        // FIX: antes se hacía UNA llamada de red (onWhatsApp) POR participante, en
+        // serie → grupos grandes congelaban el procesamiento varios segundos por
+        // cada aviso. Ahora se resuelven en paralelo.
+        const contacts = await Promise.all(
+            metadata.participants.map(p => p?.jid ? conn.onWhatsApp(p.jid).catch(() => null) : Promise.resolve(null))
+        )
+
+        for (let i = 0; i < metadata.participants.length; i++) {
+            const participant = metadata.participants[i]
             if (!participant?.jid) continue
-            
-            const contactDetails = await conn.onWhatsApp(participant.jid)
+            const contactDetails = contacts[i]
             if (!contactDetails?.[0]?.lid) continue
-            
+
             const possibleLid = contactDetails[0].lid.split("@")[0]
             if (possibleLid === lidToFind) {
                 lidCache.set(inputJid, participant.jid)

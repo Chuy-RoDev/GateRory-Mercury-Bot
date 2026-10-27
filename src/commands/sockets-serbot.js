@@ -59,7 +59,9 @@ async function resolveRealJid(conn, chat, sender) {
 }
 
 function cleanInactiveSessions() {
-    const sessionPath = path.resolve(`./${JADI_FOLDER}/`)
+    // FIX: antes se resolvía contra el cwd del proceso; si el bot no arrancaba desde la
+    // raíz del repo, limpiaba (y creaba) sesiones en otro árbol. Ahora usa la ruta global.
+    const sessionPath = path.resolve(global.rutaJadiBot || global.jadi || './jadibts/')
     if (!fs.existsSync(sessionPath)) return
 
     try {
@@ -106,7 +108,14 @@ export async function roryJadiBot(options) {
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath)
-    const { version } = await fetchLatestBaileysVersion()
+    // FIX: si fetchLatestBaileysVersion fallaba (sin red), roryJadiBot rechazaba y la
+    // reconexión del subbot moría definitivamente. Sin versión explícita, Baileys usa la suya.
+    let version
+    try {
+        ({ version } = await fetchLatestBaileysVersion())
+    } catch (e) {
+        console.error(chalk.yellow('[ SUB-BOT ] No se pudo obtener la versión de WA, usando la de Baileys:'), e.message)
+    }
 
     const connectionOptions = {
         logger: pino({ level: 'error' }),
@@ -173,11 +182,15 @@ export async function roryJadiBot(options) {
 
         if (connection === 'open') {
             sock.isInit = true
-            const subUserJid = sock.user.id.split(':')[0]
-            const botName = sock.user.name || sock.user.verifiedName || 'Bot'
+            const subUserJid = sock.user?.id?.split(':')[0] || userId
+            const botName = sock.user?.name || sock.user?.verifiedName || 'Bot'
             const cleanJid = subUserJid.replace(/[^0-9]/g, '')
             const firstLetter = botName.charAt(0).toUpperCase()
             sock.customPrefix = `${firstLetter}/`
+            // FIX: dedupe — si el mismo socket/subId ya estaba en conns, lo reemplazamos
+            // en vez de duplicar la entrada (dos 'open' seguidos la duplicaban).
+            const dupIdx = global.conns.findIndex(c => c?.subId === userId || c?.sock === sock)
+            if (dupIdx !== -1) global.conns.splice(dupIdx, 1)
             global.conns.push({ sock, subId: userId, jid: cleanJid, name: botName, uptime: Date.now() })
 
             if (fromCommand && m && m.chat) {
@@ -218,7 +231,9 @@ export async function roryJadiBot(options) {
                     return
                 }
                 console.log(chalk.yellow(`[ SUB-BOT ] Reconectando +${userId} en 10s... (Intento ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`))
-                setTimeout(() => roryJadiBot(options), 10000)
+                // FIX: sin .catch, un rechazo aquí era una unhandledRejection y la cadena
+                // de reconexión moría definitivamente aunque quedaran intentos.
+                setTimeout(() => roryJadiBot(options).catch(e => console.error(chalk.red('[ SUB-BOT ERROR ] Reconexión:'), e.message)), 10000)
             }
         }
     }
@@ -248,7 +263,10 @@ export async function roryJadiBot(options) {
                 let msgTime = msg.messageTimestamp
                 if (msgTime < startTime) continue
                 try {
-                    await sock.handler(chatUpdate)
+                    // FIX: antes se pasaba chatUpdate completo N veces (uno por mensaje del
+                    // lote), así que el ÚLTIMO mensaje se procesaba N veces y los demás se
+                    // perdían. Ahora cada mensaje se procesa individualmente.
+                    await sock.handler({ messages: [msg], type: chatUpdate.type })
                 } catch (err) {
                     console.error('[ SUB-BOT ERROR ] Error en handler:', err.message)
                 }
@@ -284,28 +302,52 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
     let realSender = await resolveRealJid(conn, m.chat, m.sender)
     let senderNum = realSender.split('@')[0].replace(/[^0-9]/g, '')
 
-    let id = inputNumber || (senderNum.length > 13 ? "584142921488" : senderNum)
+    // FIX (seguridad): antes cualquiera podía pasar el número de OTRA persona y tomar
+    // control de su sesión Sub-Bot (se cerraba su conexión viva y se reusaban sus creds).
+    // Ahora un número ajeno solo se acepta si es de un owner o si esa cuenta nunca
+    // creó una sesión (para no romper el modo código con números en formato distinto).
+    let id = senderNum
+    if (inputNumber && inputNumber !== senderNum) {
+        const esOwner = (Array.isArray(global.owner) ? global.owner : []).some(o => (Array.isArray(o) ? String(o[0]) : String(o)) === inputNumber)
+        const rutaBase = path.resolve(global.rutaJadiBot || global.jadi || './jadibts/')
+        const sesionVinculada = fs.existsSync(path.join(rutaBase, inputNumber, 'creds.json'))
+        const conexionAjenaActiva = (global.conns || []).some(c => c?.subId === inputNumber)
+        if (!esOwner && (sesionVinculada || conexionAjenaActiva)) {
+            return m.reply(`ꕤ El número +${inputNumber} ya tiene una sesión vinculada. Solo puedes crear un Sub-Bot con tu propio número.`)
+        }
+        id = inputNumber
+    }
 
-    let pathSubBot = path.join(`./${JADI_FOLDER}/`, id)
+    // FIX: se usa la ruta global (absoluta) y no la capturada al importar el módulo.
+    let pathSubBot = path.join(path.resolve(global.rutaJadiBot || global.jadi || './jadibts/'), id)
     if (!fs.existsSync(pathSubBot)) fs.mkdirSync(pathSubBot, { recursive: true })
 
     global.isSent[id] = false
-    if (global.db?.data?.users?.[m.sender]) {
-        global.db.data.users[m.sender].Subs = Date.now()
-    }
 
     const isCode = command === 'code' || (args && args.includes('--code'))
     await conn.reply(m.chat, `ꕤ Generando ${isCode ? 'código de vinculación' : 'código QR'}, por favor espera...`, m)
 
-    await roryJadiBot({
-        pathSubBot,
-        m,
-        conn,
-        args,
-        usedPrefix,
-        command,
-        fromCommand: true
-    })
+    // FIX: el cooldown se aplicaba ANTES de intentar crear el subbot, así que un fallo
+    // (sin red, credenciales corruptas) dejaba al usuario esperando 2 minutos sin nada.
+    // Ahora se marca el cooldown solo si el arranque salió bien, y los errores se
+    // reportan al usuario en vez de morir en silencio.
+    try {
+        await roryJadiBot({
+            pathSubBot,
+            m,
+            conn,
+            args,
+            usedPrefix,
+            command,
+            fromCommand: true
+        })
+        if (global.db?.data?.users?.[m.sender]) {
+            global.db.data.users[m.sender].Subs = Date.now()
+        }
+    } catch (e) {
+        console.error('[ SUB-BOT ERROR ] Fallo al iniciar subbot:', e)
+        return m.reply(`ꕤ No se pudo iniciar el Sub-Bot. Intenta de nuevo en unos segundos.\n> Detalle: ${e.message}`)
+    }
 }
 
 handler.help = ['jadibot', 'code']

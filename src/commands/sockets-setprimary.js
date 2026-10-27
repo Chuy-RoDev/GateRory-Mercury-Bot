@@ -88,15 +88,10 @@ const handler = async (m, { conn, args, usedPrefix }) => {
 
 chat.primaryBot = targetFullJid
 
-if (Array.isArray(global.conns)) {
-    for (const c of global.conns) {
-        const connDigits = getDigits(c.jid)
-        if (connDigits === targetDigits && c.sock) {
-            c.sock.customPrefix = chat.prefix || '/'
-            break
-        }
-    }
-}
+// FIX: aquí se sobreescribía sock.customPrefix con el prefijo del grupo ('/' o ':').
+// Al perder la primacía más tarde, el subbot quedaba con un customPrefix genérico que
+// pisaba su prefijo propio (inicial del nombre). La primacía ya la resuelve
+// chat.primaryBot dentro del handler, así que no hace falta tocar customPrefix.
 
 await conn.reply(m.chat, `ꕤ Listo. Se ha establecido a @${targetDigits} como Bot primario.\n> Todos los comandos serán respondidos por este Socket.`, m, { mentions: [targetFullJid] })
   } catch (e) {

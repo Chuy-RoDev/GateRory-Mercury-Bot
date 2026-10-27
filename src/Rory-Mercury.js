@@ -7,7 +7,7 @@ import chalk from "chalk"
 import fetch from "node-fetch"
 import ws from "ws"
 
-const { proto } = (await import("@whiskeysockets/baileys")).default
+// (proto eliminado: era un import muerto y .default de baileys no expone proto en ESM)
 
 // [ UTILIDADES GENERALES ]
 // Funciones básicas para que el código fluya: validar números, hacer pausas (delay)
@@ -268,12 +268,21 @@ export async function handler(chatUpdate) {
             }
 
             if (typeof plugin.before === "function") {
-                if (await plugin.before.call(this, m, { match, conn: this, participants, groupMetadata, userGroup, botGroup, isROwner, isOwner, isRAdmin, isAdmin, isBotAdmin, isPrems, chatUpdate, user, chat, settings })) continue
+                // FIX: si un hook before() lanzaba, se abortaba TODO el procesamiento
+                // del mensaje (ningún otro plugin corría). Ahora el error queda aislado.
+                try {
+                    if (await plugin.before.call(this, m, { match, conn: this, participants, groupMetadata, userGroup, botGroup, isROwner, isOwner, isRAdmin, isAdmin, isBotAdmin, isPrems, chatUpdate, user, chat, settings })) continue
+                } catch (e) {
+                    console.error(`[PLUGIN] Error en before() de ${name}:`, e)
+                }
             }
 
             if (typeof plugin !== "function" || !match) continue
 
-            usedPrefix = match[0][0]
+            // FIX: antes usaba match[0][0] (solo el primer carácter). Con el prefijo "💙"
+            // eso toma medio emoji (surrogate) y con prefijos custom de varios caracteres
+            // (ej: "//") cortaba mal, y ningún comando funcionaba con ese prefijo.
+            usedPrefix = match[0]
             const noPrefix = m.text.slice(usedPrefix.length).trim()
             let [command, ...args] = noPrefix.split(/\s+/).filter(v => v)
             command = (command || "").toLowerCase()
@@ -317,7 +326,9 @@ export async function handler(chatUpdate) {
 
             m.isCommand = true
             m.exp += plugin.exp ? parseInt(plugin.exp) : 10
-            const extra = { match, usedPrefix, noPrefix, args, command, text: args.join(" "), conn: this, participants, groupMetadata, userGroup, botGroup, isROwner, isOwner, isRAdmin, isAdmin, isBotAdmin, isPrems, chatUpdate, user, chat, settings }
+            // FIX: se añadieron sender y quoted, que varios plugins esperan recibir
+            // (ej: main-menu usa sender y crasheaba si el mensaje no traía pushName).
+            const extra = { match, usedPrefix, noPrefix, args, command, text: args.join(" "), conn: this, sender: m.sender, quoted: m.quoted || null, participants, groupMetadata, userGroup, botGroup, isROwner, isOwner, isRAdmin, isAdmin, isBotAdmin, isPrems, chatUpdate, user, chat, settings }
 
             try {
                 await plugin.call(this, m, extra)
