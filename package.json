@@ -11,7 +11,7 @@
     "optimize": "npm dedupe && npm prune"
   },
   "engines": {
-    "node": ">=18.18",
+    "node": ">=20.0.0",
     "npm": ">=9.0"
   },
   "repository": {

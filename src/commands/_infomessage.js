@@ -1,5 +1,4 @@
-let WAMessageStubType = (await import('@whiskeysockets/baileys')).default
-
+  import { WAMessageStubType } from '@whiskeysockets/baileys'
 const lidCache = new Map()
 const handler = m => m
 

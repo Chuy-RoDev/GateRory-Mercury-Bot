@@ -88,7 +88,6 @@ const handler = async (m, { conn, args, usedPrefix }) => {
 
 chat.primaryBot = targetFullJid
 
-// ← AGREGAR AQUÍ (6 líneas nuevas)
 if (Array.isArray(global.conns)) {
     for (const c of global.conns) {
         const connDigits = getDigits(c.jid)
@@ -99,8 +98,7 @@ if (Array.isArray(global.conns)) {
     }
 }
 
-await conn.reply(m.chat, `ꕤ Listo. Se ha establecido...`)
-
+await conn.reply(m.chat, `ꕤ Listo. Se ha establecido a @${targetDigits} como Bot primario.\n> Todos los comandos serán respondidos por este Socket.`, m, { mentions: [targetFullJid] })
   } catch (e) {
     conn.reply(m.chat, `ꕤ Error: ${e.message}`, m)
   }
