@@ -11,7 +11,10 @@ let handler = async (m, { conn, args, usedPrefix }) => {
     const textobot = global.textbot || 'Made with love by Arlette Xz'
     const canal = global.channel || 'https://whatsapp.com/channel/0029VbBj5it3LdQMIxu7zP1l'
 
-    const tipoBot = (conn.user.jid == global.conn.user.jid ? 'Principal' : 'Sub-Bot')
+    // FIX: en sockets Sub-Bot recién creados conn.user.jid es undefined (Baileys 7 usa
+    // user.id), lo que daba comparaciones falsas. Comparamos dígitos de user.id.
+    const digits = j => String(j || '').replace(/\D/g, '')
+    const tipoBot = (digits(conn.user?.id) && digits(conn.user?.id) === digits(global.conn?.user?.id)) ? 'Principal' : 'Sub-Bot'
     const host = tipoBot === 'Principal' ? 'Speed3xz VIP' : 'Speed3xz SUB'
 
     // Nota: Se usó ${botname} en el original, pero se corrige a ${nombreBot} o global.botname

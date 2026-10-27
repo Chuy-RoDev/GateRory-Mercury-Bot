@@ -284,11 +284,15 @@ global.reloadHandler = async function (restatConn) {
     if (!global.processedMessages) {
         global.processedMessages = new Set()
     }
-    setInterval(() => {
-        if (global.processedMessages && global.processedMessages.size > 1000) {
-            global.processedMessages.clear()
-        }
-    }, 60000)
+    // FIX: este setInterval se creaba en CADA llamada a reloadHandler (cada reconexión),
+    // acumulando timers duplicados. Ahora se crea solo una vez.
+    if (!global.__processedMsgInterval) {
+        global.__processedMsgInterval = setInterval(() => {
+            if (global.processedMessages && global.processedMessages.size > 1000) {
+                global.processedMessages.clear()
+            }
+        }, 60000)
+    }
 
     // ─────────────────────────────────────────────────────────
     // ANTIRAID
@@ -525,7 +529,13 @@ global.rutaJadiBot = global.jadi
 
 if (!global.opts['test']) {
     if (global.db) setInterval(async () => {
-        if (global.db.data) await global.db.write()
+        // FIX: sin try/catch, un fallo de escritura (disco lleno, EACCES...) rechazaba
+        // la promesa en silencio y el guardado seguía fallando cada 30s sin aviso.
+        try {
+            if (global.db.data) await global.db.write()
+        } catch (e) {
+            console.error('[DB] Error guardando la base de datos:', e.message)
+        }
         if (global.opts['autocleartmp'] && global.support?.find) {
             const tmp = [join(__dirname, 'tmp'), join(__dirname, 'tmp'), join(__dirname, 'tmp', `${global.jadi}`)]
             tmp.forEach((filename) => spawn('find', [filename, '-amin', '3', '-type', 'f', '-delete']))
@@ -540,9 +550,17 @@ setInterval(async () => {
             const filenames = readdirSync(tmpDirInterval)
             filenames.forEach(file => {
                 const filePath = join(tmpDirInterval, file)
-                if (statSync(filePath).isFile() && !filePath.includes('Sessions') && !filePath.includes('sessions') && file !== 'config.json') {
-                    unlinkSync(filePath)
-                }
+                try {
+                    const stats = statSync(filePath)
+                    // FIX: antes borraba TODO el contenido de tmp/ cada 30s sin importar la
+                    // edad. Si un comando tardaba >30s (descarga/ffmpeg), su archivo se
+                    // eliminaba en pleno uso y fallaba con ENOENT sin razón aparente.
+                    // Ahora solo se borran archivos con más de 3 minutos.
+                    const MIN_3 = 3 * 60 * 1000
+                    if (stats.isFile() && (Date.now() - stats.mtimeMs) > MIN_3 && !filePath.includes('Sessions') && !filePath.includes('sessions') && file !== 'config.json') {
+                        unlinkSync(filePath)
+                    }
+                } catch { }
             })
         }
     } catch { }

@@ -144,7 +144,13 @@ global.loadDatabase = async function loadDatabase() {
 }
 
 loadDatabase().then(() => {
-    import('./main.js').catch(console.error)
+    // FIX: si main.js fallaba al cargar (sin red, creds corruptas...), el error solo se
+    // logeaba y el proceso quedaba vivo como zombie (sin bot y sin reinicio del supervisor).
+    // Ahora salimos con código 1 para que start.sh/pm2 lo reinicie.
+    import('./main.js').catch(e => {
+        console.error(chalk.red('✗ ERROR FATAL al cargar main.js:'), e)
+        process.exit(1)
+    })
     console.log(chalk.hex('#00FFFF')('✓ Base de datos cargada correctamente'))
 
     // Reconexión de Sub-Bots en segundo plano al iniciar
@@ -161,6 +167,12 @@ loadDatabase().then(() => {
                     const creds = join(botPath, 'creds.json')
                     if (existsSync(creds)) {
                         setTimeout(async () => {
+                            // FIX: si main.js aún no creó global.conn (import lento), la
+                            // reconexión usaba conn=undefined y fallaba en silencio.
+                            // Esperamos hasta 60s a que el bot principal esté listo.
+                            for (let i = 0; i < 12 && !global.conn?.user; i++) {
+                                await new Promise(r => setTimeout(r, 5000))
+                            }
                             try {
                                 await roryJadiBot({
                                     pathSubBot: botPath,
@@ -171,7 +183,9 @@ loadDatabase().then(() => {
                                     command: 'qr',
                                     fromCommand: false
                                 })
-                            } catch (e) {}
+                            } catch (e) {
+                                console.error(chalk.red(`[SUB-BOT] Reconexión fallida para ${gjbts}:`), e.message)
+                            }
                         }, 10000)
                     }
                 }

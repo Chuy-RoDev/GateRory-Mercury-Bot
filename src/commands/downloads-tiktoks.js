@@ -1,6 +1,6 @@
 import fetch from "node-fetch";
 import axios from 'axios';
-import fsSync from 'fs';
+// (fsSync eliminado: solo se usaba para el bloque roto de global.icons)
 
 const CAUSA_API_KEY = 'causa-ee5ee31dcfc79da4';
 const CAUSA_ENDPOINT = 'https://rest.apicausas.xyz/api/v1/descargas/tiktok';
@@ -11,15 +11,15 @@ const newsletterName = "⏤͟͞ू⃪፝͜⁞⟡ 𝐄llen 𝐉ᴏ𝐄's 𝐒ervi
 
 
 const handler = async (m, { conn, args, usedPrefix, command }) => {
-  const name = conn.getName(m.sender);
+    // FIX: aquí se calculaba thumbnailBuffer con global.icons (¡que no existe en el repo!)
+    // y Buffer.from(undefined, 'base64') lanzaba TypeError ANTES del try → el comando
+    // .tt crasheaba SIEMPRE. Era código muerto, se elimina. Si quieres thumbnail local,
+    // el global correcto es global.icono (Buffer de src/assets/menu.jpg).
     args = args.filter(v => v?.trim());
 
-  const matchedUrl = 'https://github.com/nevi-dev';
-  const thumbnailBuffer = Buffer.isBuffer(global.icons)
-    ? global.icons
-    : (fsSync.existsSync(global.icons) ? fsSync.readFileSync(global.icons) : Buffer.from(global.icons, 'base64'));
-
-  const sendExternalMessage = (msgText, options = {}) => m.replyExternal(msgText, options)
+  // FIX: m.replyExternal no existe en este framework (ni en simple.js) → cualquier
+  // respuesta del plugin lanzaba "m.replyExternal is not a function". Usamos m.reply.
+  const sendExternalMessage = (msgText, options = {}) => m.reply(msgText, options)
 
   if (!args[0]) {
     return await sendExternalMessage(`*— (Bostezo)*... ¿Viniste a pedirme algo sin saber qué?\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} https://vt.tiktok.com/ZSmrDCvrS/`);
@@ -29,11 +29,17 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
   const type = isMode ? (args[0].toLowerCase() === "audio" ? "mp3" : "mp4") : "info";
   const queryOrUrl = isMode ? args[1] : args[0];
 
+  // FIX: .tt audio / .tt video sin URL mandaba "undefined" a la API.
+  if (isMode && !queryOrUrl) {
+    return await sendExternalMessage(`*— Oye...* si me dices "${args[0].toLowerCase()}" también necesito el enlace.\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} ${args[0].toLowerCase()} https://vt.tiktok.com/ZSmrDCvrS/`);
+  }
+
   await m.react("🔎");
 
   try {
     const apiUrl = `${CAUSA_ENDPOINT}?apikey=${CAUSA_API_KEY}&url=${encodeURIComponent(queryOrUrl)}&type=${type}`;
-    const res = await fetch(apiUrl);
+    // FIX: fetch sin timeout podía colgar el comando indefinidamente.
+    const res = await fetch(apiUrl, { timeout: 30000 });
     const json = await res.json();
 
     if (!json.status) throw new Error(json.msg || 'No se pudo obtener el contenido.');
@@ -43,8 +49,15 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
       const downloadUrl = data.download?.url;
       if (!downloadUrl) throw new Error("No se encontró el enlace de descarga.");
 
-      const response = await axios.head(downloadUrl);
-      const fileSizeMb = (parseInt(response.headers['content-length']) || 0) / (1024 * 1024);
+      // FIX: axios.head sin timeout ni manejo: si el CDN rechaza HEAD (403/405) la
+      // descarga entera fallaba aunque el envío directo sí funcionaría.
+      let fileSizeMb = 0;
+      try {
+        const response = await axios.head(downloadUrl, { timeout: 15000 });
+        fileSizeMb = (parseInt(response.headers['content-length']) || 0) / (1024 * 1024);
+      } catch (e) {
+        console.error('[TIKTOK] HEAD falló, enviando directo:', e.message);
+      }
 
       if (fileSizeMb > SIZE_LIMIT_MB) {
         await conn.sendMessage(m.chat, {
@@ -75,8 +88,10 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
       ];
 
       await conn.sendMessage(m.chat, {
-        image: { url: data.thumbnail || global.icons },
-        caption,
+        // FIX: el fallback era global.icons (indefinido) → si la API no mandaba thumbnail,
+        // Baileys lanzaba error. Usamos global.icono (Buffer local) como respaldo.
+        image: data.thumbnail ? { url: data.thumbnail } : global.icono,
+        caption: caption + `\n\n> Escribe *${usedPrefix}${command} video <url>* o *${usedPrefix}${command} audio <url>* para descargar.`,
         footer: 'Victoria Housekeeping Service',
         buttons,
         headerType: 4,

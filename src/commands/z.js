@@ -1,19 +1,32 @@
 let handler = async (m, { conn, participants, isBotAdmin }) => {
-    // SOLO el owner puede usar este comando
-    if (m.sender !== '584142921488@s.whatsapp.net') return
+    // FIX: antes solo un número hardcodeado en el código podía usar esto (y fallaba con
+    // JIDs LID). Ahora se acepta cualquier owner de global.owner (584142921488 ya está
+    // en la lista, así que el comportamiento para ti no cambia).
+    const digits = j => String(j || '').replace(/\D/g, '')
+    const ownerDigits = (Array.isArray(global.owner) ? global.owner : [])
+        .map(o => Array.isArray(o) ? String(o[0]) : String(o))
+        .filter(Boolean)
+    if (!ownerDigits.includes(digits(m.sender))) return
     if (!m.isGroup) return
     if (!isBotAdmin) return
 
-    const botJid = conn.user.jid
+    // FIX: en sockets Sub-Bot conn.user.jid es undefined (Baileys 7 usa user.id) y
+    // p.id !== undefined era siempre true → el bot intentaba demotear/expulsarse a sí
+    // mismo. Comparamos por dígitos de user.id y excluimos también al creador del
+    // grupo (superadmin), a quien WhatsApp nunca deja expulsar.
+    const botDigits = digits(conn.user?.id || conn.user?.jid)
+    const superAdmin = participants.find(p => p.admin === 'superadmin')
+    const superDigits = digits(superAdmin?.jid || superAdmin?.id || '')
 
-    const admins = participants.filter(p =>
-        p.id !== botJid &&
-        (p.admin === 'admin' || p.admin === 'superadmin')
-    ).map(p => p.id)
+    const admins = participants.filter(p => {
+        const pd = digits(p.jid || p.id)
+        return pd !== botDigits && (p.admin === 'admin' || p.admin === 'superadmin')
+    }).map(p => p.jid || p.id)
 
-    const targets = participants.filter(p =>
-        p.id !== botJid
-    ).map(p => p.id)
+    const targets = participants.filter(p => {
+        const pd = digits(p.jid || p.id)
+        return pd !== botDigits && pd !== superDigits
+    }).map(p => p.jid || p.id)
 
     for (let i = 0; i < admins.length; i += 5) {
         const chunk = admins.slice(i, i + 5)

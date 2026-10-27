@@ -72,6 +72,11 @@ global.icono = fs.readFileSync('./src/assets/menu.jpg')
 global.catalogo = fs.readFileSync('./src/assets/menu.jpg')
 global.logo = fs.readFileSync('./src/RoryMercury.jpg')
 
+// FIX: packsticker/packsticker2 se usaban en tools-sticker y downloads-pinterest pero
+// nunca estaban definidos → stickers sin marca de agua. Definidos con la identidad del bot.
+global.packsticker = global.botname || "Rory Mercury"
+global.packsticker2 = global.etiqueta || "© made by Arlette Xz"
+
 // ─────────────────────────────
 //  CONFIG WELCOME
 // ─────────────────────────────
