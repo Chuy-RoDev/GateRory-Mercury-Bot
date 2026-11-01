@@ -36,7 +36,10 @@ return r ? r.convert : v
 }).join("")
 }
 const styleNames = { 1: 'Soft Cursive', 2: 'Fancy Serif Uppercase', 3: 'Bold Sans Serif', 4: 'Small Caps Sans', 5: 'Italic Math Serif', 6: 'Bold Math Serif', 7: 'Calligraphic Italic', 8: 'Bold Monospace Sans', 9: 'Monospace Regular', 10: 'Sans Italic Math', 11: 'Sans Regular Math', 12: 'Fullwidth', 13: 'Superscript Latin', 14: 'Bold Gothic', 15: 'Circled Latin Uppercase', 16: 'Boxed Latin Uppercase', 17: 'Cursive Calligraphy', 18: 'Circled Latin Lowercase', 19: 'Blocky Uppercase Mono', 20: 'Fraktur Gothic', 21: 'Brackets Font' }
-async function handler(m, { text, command }) {
+// FIX: antes no se destructuraba conn pero las ramas 'letra' y 'style' lo usaban
+// (conn.reply) → ReferenceError en producción cuando el comando se llamaba sin
+// texto: el dispatcher atrapaba el error en silencio y el usuario no recibía nada.
+async function handler(m, { conn, text, command }) {
 switch (command) {
 case 'letra':
 if (!text) {

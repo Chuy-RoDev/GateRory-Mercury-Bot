@@ -36,7 +36,7 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
 
 ╭┈ ↷
 │❀ 𝗠𝗼𝗱𝗼 » Público
-│ᰔ 𝗧𝗶𝗽𝗼 » ${(conn.user.jid == global.conn.user.jid ? 'Principal' : 'Sub-Bot')}
+│ᰔ 𝗧𝗶𝗽𝗼 » ${(conn.user.jid == (global.conn?.user?.jid || conn.user.jid) ? 'Principal' : 'Sub-Bot')}
 │❀ 𝗖𝗿𝗲𝗮𝗱𝗼𝗿𝗮 & 𝗠𝗼𝗱𝗲𝗮𝗱𝗼 » ${etiquetaLocal}
 │⚘ 𝗣𝗿𝗲𝗳𝗶𝗷𝗼 » ${_p}
 │✰ 𝗨𝘀𝘂𝗮𝗿𝗶𝗼𝘀 » ${totalreg.toLocaleString()}

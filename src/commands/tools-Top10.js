@@ -1,7 +1,10 @@
 const handler = async (m, { conn, text, groupMetadata, usedPrefix, command }) => {
     if (!text) return conn.reply(m.chat, `╭─「 🏆 𝗧𝗼𝗽 𝟭𝟬 」\n│\n│ ✦ Escribe el tema del ranking.\n│ _Uso:_ *${usedPrefix + command} <texto>*\n│\n╰─────────────────`, m)
 
-    const participants = groupMetadata.participants
+    // FIX: si groupMetadata() falla (lag/red), antes participants era undefined y
+    // participants.length crasheaba; ahora responde con aviso en vez de morir.
+    const participants = groupMetadata?.participants || []
+    if (!participants.length) return conn.reply(m.chat, `╭─「 ⚠︎ 𝗘𝗿𝗿𝗼𝗿 」\n│\n│ ✦ No pude leer los participantes del grupo. Intenta de nuevo.\n│\n╰─────────────────`, m)
     if (participants.length < 5) return conn.reply(m.chat, `╭─「 ⚠︎ 𝗘𝗿𝗿𝗼𝗿 」\n│\n│ ✦ Grupo muy pequeño para un top.\n│\n╰─────────────────`, m)
 
     const emojisTop = ['🏆', '🥇', '👑', '⭐', '✨', '🔥', '🎯', '💎', '🚀', '⚡']
