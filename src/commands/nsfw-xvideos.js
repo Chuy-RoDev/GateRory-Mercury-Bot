@@ -73,7 +73,7 @@ result: res.slice(0, 10),
 key,
 picks: [],
 idleTimer: null,
-totalTimer: setTimeout(() => flushBatch(conn, m.sender), TOTAL_MS),
+totalTimer: setTimeout(() => flushBatch(conn, m.sender).catch((e) => console.error('[xvideos] fallo el lote (total):', e.message)), TOTAL_MS),
 }
 programarIdle(conn, m.sender)
 await m.react('✔️')
@@ -152,7 +152,7 @@ function programarIdle(conn, sender) {
 const session = conn.xvideos[sender]
 if (!session) return
 clearTimeout(session.idleTimer)
-session.idleTimer = setTimeout(() => flushBatch(conn, sender), IDLE_MS)
+session.idleTimer = setTimeout(() => flushBatch(conn, sender).catch((e) => console.error('[xvideos] fallo el lote (idle):', e.message)), IDLE_MS)
 }
 
 handler.help = ['xvideos']
