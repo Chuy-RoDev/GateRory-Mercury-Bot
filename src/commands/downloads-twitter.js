@@ -1,4 +1,4 @@
-let handler = async (m, { conn, args, text }) => {
+let handler = async (m, { conn, args, text, usedPrefix }) => {
 if (!text) {
 return conn.reply(m.chat, `❀ Te faltó el link de una imagen/video de twitter.`, m)
 }

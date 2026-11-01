@@ -12,7 +12,7 @@ for (let i = 0; i < slice.length; i++) {
 const { jid, exp, level } = slice[i]
 let name = await global.getProperName(conn, jid)
 text += `✰ ${startIndex + i + 1} » *${name}*\n`
-text += `\t\t❖ XP » *${exp.toLocaleString()}*  ❖ LVL » *${level}*\n`
+text += `\t\t❖ XP » *${(exp || 0).toLocaleString()}*  ❖ LVL » *${level || 0}*\n`
 }
 text += `\n> • Página *${page}* de *${Math.ceil(sorted.length / 10)}*`
 if (page < Math.ceil(sorted.length / 10)) text += `\n> Para ver la siguiente página » */leaderboard ${page + 1}*`
