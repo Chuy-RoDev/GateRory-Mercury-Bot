@@ -84,14 +84,31 @@ function asegurarFFmpeg() {
   }
 
   console.log(chalk.yellow('⚠ ffmpeg no encontrado. Instalando automáticamente...'))
-  try {
-    execSync('sudo apt-get update -y && sudo apt-get install -y ffmpeg', { stdio: 'inherit' })
-    if (verificarFFmpeg()) {
-      console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado correctamente'))
-      return true
+  // FIX (compatibilidad Termux / cloud): antes solo se intentaba
+  // "sudo apt-get install ffmpeg", que no existe en Termux (usa pkg) ni en otras
+  // distros (apk/dnf). Se prueban los gestores comunes en orden y se usa el
+  // primero que funcione; si ninguno está disponible, el bot arranca igual.
+  const esTermux = (process.env.PREFIX || '').includes('com.termux')
+  const esRoot = (() => { try { return process.getuid() === 0 } catch { return false } })()
+  const comandos = esTermux
+    ? ['pkg install -y ffmpeg']
+    : [
+        esRoot ? 'apt-get update -y && apt-get install -y ffmpeg' : null,
+        esRoot ? null : 'sudo apt-get update -y && sudo apt-get install -y ffmpeg',
+        'apk add --no-cache ffmpeg',
+        'dnf install -y ffmpeg',
+      ].filter(Boolean)
+
+  for (const cmd of comandos) {
+    try {
+      execSync(cmd, { stdio: 'inherit' })
+      if (verificarFFmpeg()) {
+        console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado correctamente'))
+        return true
+      }
+    } catch (e) {
+      console.log(chalk.red(`✗ Falló "${cmd.split(' ')[0]}": ${String(e.message).split('\n')[0]}`))
     }
-  } catch (e) {
-    console.log(chalk.red('✗ Error durante la instalación de ffmpeg: ' + e.message))
   }
   return false
 }

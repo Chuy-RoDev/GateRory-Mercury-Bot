@@ -4,3 +4,8 @@ src/database/database.json
 src/json/restart.json
 *.swp
 .env
+
+# dependencias y datos locales del bot (no versionar)
+node_modules/
+database/
+tmp/
