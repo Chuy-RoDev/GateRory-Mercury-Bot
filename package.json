@@ -33,7 +33,6 @@
     "form-data": "^4.0.0",
     "formdata-node": "^5.0.0",
     "google-libphonenumber": "^3.2.41",
-    "gradient-string": "^2.0.2",
     "human-readable": "^0.2.1",
     "jimp": "^0.22.12",
     "lodash": "^4.17.21",
