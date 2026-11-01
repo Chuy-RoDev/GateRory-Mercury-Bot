@@ -2,6 +2,11 @@ process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '1'
 
 import './src/config.js'
 import './src/commands/main-allfake.js'
+// ANTIBAN: capa anti-detección/anti-ban. Debe cargarse ANTES de main.js para que
+// makeWASocket (lib/simple.js) ya encuentre global.__antiban al crear cada socket.
+// Es autocontenida (0 dependencias nuevas) y si fallara al cargar, el bot arranca
+// normal porque simple.js solo la usa si global.__antiban existe.
+import './lib/antiban.js'
 import cfonts from 'cfonts'
 import { createRequire } from 'module'
 import { fileURLToPath, pathToFileURL } from 'url'

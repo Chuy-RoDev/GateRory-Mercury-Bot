@@ -242,7 +242,9 @@ export async function handler(chatUpdate) {
 
             if (typeof plugin.all === "function") {
                 await plugin.all.call(this, m, { chatUpdate, user, chat, settings }).catch(() => null)
-                await delay(200)
+                // ANTIBAN: delay fijo → jitter aleatorio (un ritmo idéntico en cada
+                // mensaje es huella de automatización)
+                await delay(120 + Math.random() * 280)
             }
 
             if (!opts["restrict"] && plugin.tags?.includes("admin")) continue
@@ -329,14 +331,38 @@ export async function handler(chatUpdate) {
 
             m.isCommand = true
             m.exp += plugin.exp ? parseInt(plugin.exp) : 10
+
+            // ── ANTIBAN: control anti-flood y cuarentena de plugins ──
+            // 1) Rate limit por usuario+chat: si el mismo usuario machaca comandos
+            //    más rápido de lo humano, el bot SOLO reacciona con ⏳ (sin texto:
+            //    menos mensajes del bot = menos señal para WhatsApp) y no ejecuta.
+            //    Owners y premium nunca se limitan.
+            // 2) Circuit breaker: si un plugin está crasheando en ráfaga, entra en
+            //    cuarentena temporal en vez de tumbar el proceso con errores.
+            const ab = global.__antiban
+            if (ab && typeof ab.checkCommand === "function") {
+                const gate = ab.checkCommand(m, { isROwner, isPrems })
+                if (!gate.ok) {
+                    try { await m.react('⏳') } catch { }
+                    return
+                }
+                if (ab.isQuarantined(name)) {
+                    console.error(`[ANTIBAN] Plugin "${name}" en cuarentena — comando "${command}" ignorado`)
+                    return
+                }
+            }
             // FIX: se añadieron sender y quoted, que varios plugins esperan recibir
             // (ej: main-menu usa sender y crasheaba si el mensaje no traía pushName).
             const extra = { match, usedPrefix, noPrefix, args, command, text: args.join(" "), conn: this, sender: m.sender, quoted: m.quoted || null, participants, groupMetadata, userGroup, botGroup, isROwner, isOwner, isRAdmin, isAdmin, isBotAdmin, isPrems, chatUpdate, user, chat, settings }
 
             try {
                 await plugin.call(this, m, extra)
-                await delay(500)
+                // ANTIBAN: delay fijo → jitter aleatorio (350-800ms)
+                await delay(350 + Math.random() * 450)
             } catch (err) {
+                // ANTIBAN: el breaker cuenta los errores por plugin; con demasiados
+                // en ventana corta, el plugin entra en cuarentena y se avisa al owner
+                try { global.__antiban?.reportCommandResult?.(name, err) } catch { }
                 console.error(err)
             } finally {
                 if (typeof plugin.after === "function") {

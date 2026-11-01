@@ -168,6 +168,22 @@ global.getUserCurrency = (chatId) => {
 }
 
 // ─────────────────────────────
+//  ANTIBAN — PROTECCIÓN ANTI-DETECCIÓN / ANTI-BAN
+// ─────────────────────────────
+// lib/antiban.js lee esto al arrancar. Puedes tunear sin tocar código:
+//  · enabled: false      → apaga toda la capa (no recomendado)
+//  · cooldownMs          → segundos mínimos entre comandos del mismo usuario (ms)
+//  · maxPerMinute        → tope de comandos por minuto por usuario antes de castigo
+//  · outboxMin/MaxMs     → espaciado aleatorio entre envíos del bot (ms)
+global.antibanCfg = {
+    enabled: true,
+    cooldownMs: 2500,
+    maxPerMinute: 8,
+    outboxMinMs: 350,
+    outboxMaxMs: 900,
+}
+
+// ─────────────────────────────
 //  SISTEMA DE ACTUALIZACIÓN
 // ─────────────────────────────
 let file = fileURLToPath(import.meta.url)

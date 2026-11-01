@@ -13,3 +13,4 @@ tmp/
 # mutes legacy sin uso (contenia JIDs reales) y caches huerfanos del gacha
 src/json/mutes.json
 src/json/.gacha_cache*.json
+src/json/antiban-state.json
