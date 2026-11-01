@@ -352,6 +352,8 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
 
 handler.help = ['jadibot', 'code']
 handler.tags = ['jadibot']
-handler.command = ['qr', 'code', 'jadibot', 'subbot']
+// 'serbot' heredado de owner-backup.js (que lo tenía roto y además nos
+// robaba 'jadibot' por orden alfabético del dispatcher)
+handler.command = ['qr', 'code', 'jadibot', 'subbot', 'serbot']
 
 export default handler
