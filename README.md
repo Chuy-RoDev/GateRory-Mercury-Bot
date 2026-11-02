@@ -17,7 +17,7 @@
 
 ## `❕ Información 🖤`
 
-**Rory-Mercury-Bot** es un bot de WhatsApp basado en **Node.js** con la librería **@whiskeysockets/Baileys 7**. **148 comandos** (con **571 alias** en total) organizados en 11 categorías con temática gótica, lista para correr en **Termux (Android)**, **Cloud Shell** o cualquier **VPS Linux**.
+**Rory-Mercury-Bot** es un bot de WhatsApp basado en **Node.js** con la librería **@whiskeysockets/Baileys 7**. **149 comandos** (con **572 alias** en total) organizados en 11 categorías con temática gótica, lista para correr en **Termux (Android)**, **Cloud Shell** o cualquier **VPS Linux**.
 
 🚫 Este proyecto **NO** está afiliado a WhatsApp ni WhatsApp LLC.
 
@@ -37,7 +37,7 @@
 - ⚡ **Instalación en un solo comando** — `bash instalar.sh` detecta tu entorno (Termux/Cloud Shell/VPS), verifica Node 20, instala ffmpeg y las dependencias solito.
 - 🛡️ **Capa antiban integrada** — rate-limiter por usuario, typing humano con pausas naturales, watchdog de reconexión con backoff, circuit breaker de plugins y avisos al owner. 0 dependencias nuevas.
 - 🔒 **Repo liviano y limpio** — ~2 MB (sin `node_modules`): clona y ejecuta, npm lo instala todo. Sin datos sensibles en el historial.
-- 🧪 **157 plugins auditados** — más de 1400 ejecuciones de simulación; bugs de inyección, path traversal y crashes corregidos.
+- 🧪 **158 plugins auditados** — más de 1400 ejecuciones de simulación; bugs de inyección, path traversal y crashes corregidos.
 - 🎴 **16 personajes de gacha** con arte verificado de AniList.
 - 🤖 **Robot de CI** — en cada push un workflow revisa la sintaxis de todos los `.js` (no ejecuta nada del bot).
 
@@ -119,6 +119,7 @@
 │  ✦ Info del grupo, cambiar nombre/foto/desc
 │  ✦ Prefijo propio por grupo
 │  ✦ Restablecer enlace de invitación
+│  ✦ Publicar tu grupo en gruposwats.com
 │
 │  🤖  BOTS & SOCKETS
 │  ✦ Sub-bots con QR o código
