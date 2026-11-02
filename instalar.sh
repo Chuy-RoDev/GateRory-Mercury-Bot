@@ -72,5 +72,5 @@ fi
 # ── 5. Resumen ─────────────────────────────────────────────
 echo ""
 echo -e "${verde}══════════════════════════════════════${nc}"
-ok "Todo listo. Arranca el bot con:  ./start.sh"
+ok "Todo listo. Arranca el bot con:  bash start.sh"
 echo -e "${verde}══════════════════════════════════════${nc}"
