@@ -16,9 +16,9 @@ const SITE = global.gruposwatsBaseUrl || 'https://www.gruposwats.com'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
 
 const MAX_NOMBRE = 35, MAX_DESC = 150, MAX_KEYS = 90
-const RE_ENLACE = /^https:\/\/chat\.whatsapp\.com\/[\w-]+$/
 const RE_CORREO = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/
 const TIEMPO_LIMITE_MS = 10 * 60 * 1000 // 10 min por paso
+const TIEMPO_VERIFICACION_MS = 20000 // tope para consultar el enlace contra WhatsApp
 
 const PASOS = ['nombre', 'enlace', 'descripcion', 'claves', 'correo', 'adulto']
 
@@ -44,6 +44,7 @@ case 'resumen':
 return `ꕤ *Resumen de tu publicación*\n\n` +
 `┌ ✦ Nombre: ${datos.nombre}\n` +
 `├ ✦ Enlace: ${datos.enlace}\n` +
+(datos.enlaceGrupo ? `│   └ ✧ Grupo verificado: ${datos.enlaceGrupo}\n` : '') +
 `├ ✦ Descripción: ${datos.descripcion}\n` +
 `├ ✦ Claves: ${datos.claves}\n` +
 `├ ✦ Correo de gestión: ${datos.correo}\n` +
@@ -64,7 +65,7 @@ return {
 sender: m.sender,
 chat: m.chat,
 paso: 'nombre',
-datos: { nombre: null, enlace: null, descripcion: null, claves: null, correo: null, adulto: null },
+datos: { nombre: null, enlace: null, enlaceGrupo: null, descripcion: null, claves: null, correo: null, adulto: null },
 preguntaKey: null,
 timer: null,
 }
@@ -130,15 +131,70 @@ if (!mm) throw new Error(`gruposwats rechazó el alta: ${stripTags(respuesta).sl
 return `${SITE}/${mm[0]}`
 }
 
+// ── ENLACE: extracción tolerante + verificación REAL contra WhatsApp ────────
+// FIX: antes exigía que el mensaje fuese EXACTAMENTE el enlace y fallaba con
+// texto alrededor, sin https://, con www, etc. Ahora lo extrae de donde sea.
+function extraerEnlace(texto) {
+const mm = texto.match(/(?:https?:\/\/)?(?:www\.)?chat\.whatsapp\.com\/([A-Za-z0-9_-]{10,})/i)
+if (!mm) return null
+return { url: `https://chat.whatsapp.com/${mm[1]}`, codigo: mm[1] }
+}
+
+// pregunta a WhatsApp por la metadata del grupo del código de invitación
+// (conn.groupGetInviteInfo NO une al bot al grupo; solo consulta). Devuelve:
+// { ok:true, grupo, size } | { ok:false, causa } | { ok:null } si no se pudo verificar.
+async function verificarEnlace(conn, url) {
+const codigo = url.split('chat.whatsapp.com/')[1]
+if (!codigo) return { ok: false, causa: 'formato' }
+let tope
+try {
+const consulta = conn.groupGetInviteInfo(codigo)
+consulta.catch(() => null) // evita unhandled rejection si gana el timeout
+const v = await Promise.race([
+consulta,
+new Promise((_, rej) => { tope = setTimeout(() => rej(new Error('timeout-verificacion')), TIEMPO_VERIFICACION_MS) }),
+])
+return { ok: true, grupo: v?.subject || 'Grupo de WhatsApp', size: v?.size || null }
+} catch (e) {
+const msg = String(e?.message || e)
+if (/item-not-found|not-?found|gone|404|410|bad-request|forbidden/i.test(msg)) return { ok: false, causa: 'noexiste' }
+return { ok: null } // timeout o falla de conexión: no castigar al usuario
+} finally {
+clearTimeout(tope)
+}
+}
+
+// valida, verifica y guarda el enlace en la sesión. Responde al usuario según el resultado.
+async function validarYGuardarEnlace(conn, m, session, textoEnlace) {
+const ex = extraerEnlace(textoEnlace || '')
+if (!ex) {
+await m.reply('✧ No detecté un enlace de invitación de WhatsApp. Debe verse así:\nhttps://chat.whatsapp.com/XXXXXXXX\n\n✧ Cópialo directo desde el grupo: toca el nombre → *Invitar mediante enlace* → *Copiar enlace*.')
+return false
+}
+await m.react('🔎')
+const v = await verificarEnlace(conn, ex.url)
+if (v.ok === false) {
+await m.react('✖️')
+await m.reply('✧ Ese enlace *no existe o fue revocado* — lo verifiqué contra WhatsApp y no corresponde a ningún grupo.\n\n✧ Revisa que sea el enlace correcto o genera uno nuevo en el grupo y mándalo.')
+return false
+}
+session.datos.enlace = ex.url
+session.datos.enlaceGrupo = v.ok === true ? (v.grupo || null) : null
+if (v.ok === true) {
+await m.react('✔️')
+await m.reply(`✔ Enlace verificado en WhatsApp: *${v.grupo}*${v.size ? ` (${v.size} integrantes)` : ''}`)
+} else {
+await m.reply('⚠︎ No pude verificar el enlace contra WhatsApp (falla de conexión), pero el formato es correcto — lo acepto.')
+}
+return true
+}
+
 // validaciones por paso (mismos límites que el sitio)
 function validar(paso, texto) {
 switch (paso) {
 case 'nombre':
 if (!texto) return 'El nombre no puede ir vacío.'
 if (texto.length > MAX_NOMBRE) return `El nombre no puede pasar de ${MAX_NOMBRE} caracteres (lleva ${texto.length}).`
-return null
-case 'enlace':
-if (!RE_ENLACE.test(texto)) return 'Ese no es un enlace de invitación de WhatsApp. Debe verse así: https://chat.whatsapp.com/XXXXXXXX'
 return null
 case 'descripcion':
 if (!texto) return 'La descripción no puede ir vacía.'
@@ -243,13 +299,23 @@ return
 // mientras se envía la ficha, ignorar respuestas nuevas
 if (!PASOS.includes(session.paso)) return
 
+// paso enlace: extracción tolerante + verificación REAL del enlace contra WhatsApp
+if (session.paso === 'enlace') {
+if (!await validarYGuardarEnlace(conn, m, session, texto)) return
+const ie = PASOS.indexOf('enlace')
+return preguntar(conn, m, session, PASOS[ie + 1])
+}
+
 // atajo modo rápido: en el paso nombre, acepta el formato completo de una vez
 if (session.paso === 'nombre' && texto.split('|').length >= 5) {
 const p = texto.split('|').map(x => x.trim())
-const prueba = { nombre: p[0], enlace: p[1], descripcion: p[2], claves: p[3], correo: p[4] }
-const err = validar('nombre', prueba.nombre) || validar('enlace', prueba.enlace) || validar('descripcion', prueba.descripcion) || validar('claves', prueba.claves) || validar('correo', prueba.correo)
+const err = validar('nombre', p[0]) || validar('descripcion', p[2]) || validar('claves', p[3]) || validar('correo', p[4])
 if (err) { await m.reply('✧ ' + err + '\n\n✧ Manda solo el nombre, o el formato completo: Nombre | enlace | descripción | claves | correo'); return }
-Object.assign(session.datos, prueba)
+if (!await validarYGuardarEnlace(conn, m, session, p[1])) return
+session.datos.nombre = p[0]
+session.datos.descripcion = p[2]
+session.datos.claves = p[3]
+session.datos.correo = p[4]
 await m.reply('ꕤ Modo rápido detectado — solo falta un dato.')
 return preguntar(conn, m, session, 'adulto')
 }
