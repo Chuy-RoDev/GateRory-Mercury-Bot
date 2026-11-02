@@ -48,6 +48,7 @@ return `ꕤ *Resumen de tu publicación*\n\n` +
 `├ ✦ Descripción: ${datos.descripcion}\n` +
 `├ ✦ Claves: ${datos.claves}\n` +
 `├ ✦ Correo de gestión: ${datos.correo}\n` +
+`├ ✦ Miembros de cualquier país: Sí\n` +
 `└ ✦ Contenido +18: ${datos.adulto ? 'Sí' : 'No'}\n\n` +
 `✧ Así se publicará en gruposwats.com.\n\n` +
 `✦ Responde a este mensaje:\n` +
@@ -110,11 +111,13 @@ const htmlForm = await pagina.text()
 const ck = valorInput(htmlForm, 'ck')
 const tt = valorInput(htmlForm, 'tt')
 if (!ck || !tt) throw new Error('No pude leer el formulario de gruposwats (¿cambió el sitio?). Intenta más tarde.')
+// que_pais 's' = "Sí. Todo el mundo puede unirse" — fijo a petición del dueño;
+// antes mandaba 'n' (el default del sitio) y el grupo quedaba "solo usuarios de mi país"
 const cuerpo = new URLSearchParams({
 i: '', h: '', p_c: '', ck, tt, filtro: 'n',
 nombre: datos.nombre, urlchat: datos.enlace,
 filtro_sexo: datos.adulto ? 's' : 'n',
-que_pais: 'n',
+que_pais: 's',
 correo: datos.correo, correo2: datos.correo,
 keysciudad: '', descripcion: datos.descripcion, keys: datos.claves,
 cat1: '', cat2: '', cat3: '', privacidad: 'si',
