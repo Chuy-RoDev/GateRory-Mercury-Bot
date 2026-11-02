@@ -17,7 +17,7 @@
 
 ## `❕ Información 🖤`
 
-**Rory-Mercury-Bot** es un bot de WhatsApp basado en **Node.js** con la librería **@whiskeysockets/Baileys 7**. **149 comandos** (con **572 alias** en total) organizados en 11 categorías con temática gótica, lista para correr en **Termux (Android)**, **Cloud Shell** o cualquier **VPS Linux**.
+**Rory-Mercury-Bot** es un bot de WhatsApp basado en **Node.js** con la librería **@whiskeysockets/Baileys 7**. **149 comandos** (con **573 alias** en total) organizados en 11 categorías con temática gótica, lista para correr en **Termux (Android)**, **Cloud Shell** o cualquier **VPS Linux**.
 
 🚫 Este proyecto **NO** está afiliado a WhatsApp ni WhatsApp LLC.
 
@@ -119,7 +119,7 @@
 │  ✦ Info del grupo, cambiar nombre/foto/desc
 │  ✦ Prefijo propio por grupo
 │  ✦ Restablecer enlace de invitación
-│  ✦ Publicar tu grupo en gruposwats.com
+│  ✦ Publicar tu grupo en gruposwats.com (asistente guiado)
 │
 │  🤖  BOTS & SOCKETS
 │  ✦ Sub-bots con QR o código
