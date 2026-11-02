@@ -67,10 +67,13 @@ clearTimeout(previa.totalTimer)
 delete conn.xvideos[m.sender]
 }
 
-const { key } = await conn.sendMessage(m.chat, { text: caption }, { quoted: m })
+// FIX: guardar el mensaje COMPLETO (mRef) para quotear — la key sola hace que
+// Baileys truene con "Cannot read properties of undefined (reading 'fromMe')".
+const info = await conn.sendMessage(m.chat, { text: caption }, { quoted: m })
 conn.xvideos[m.sender] = {
 result: res.slice(0, 10),
-key,
+key: info?.key || m.key,
+mRef: m,
 picks: [],
 idleTimer: null,
 totalTimer: setTimeout(() => flushBatch(conn, m.sender).catch((e) => console.error('[xvideos] fallo el lote (total):', e.message)), TOTAL_MS),
@@ -117,6 +120,9 @@ clearTimeout(session.totalTimer)
 const { key, picks } = session
 const chat = key.remoteJid
 if (!picks.length) return
+// quoted valido para todo el lote: mensaje completo (key + message). Si por
+// alguna razon no existe o esta incompleto, se envia sin quote en vez de crashear.
+const ref = (session.mRef && session.mRef.key && session.mRef.message) ? session.mRef : undefined
 
 await conn.sendMessage(chat, { react: { text: '🕒', key } })
 
@@ -131,7 +137,7 @@ return null
 const valid = urls.filter(Boolean)
 
 if (!valid.length) {
-await conn.reply(chat, '⚠︎ Ninguno de los videos se pudo descargar, intenta de nuevo.', key)
+await conn.reply(chat, '⚠︎ Ninguno de los videos se pudo descargar, intenta de nuevo.', ref)
 return
 }
 
@@ -139,11 +145,11 @@ const faltaron = picks.length !== valid.length ? ` de *${picks.length}*` : ''
 const caption = `*乂 ¡XVIDEOS - TUS ELECCIONES! 乂*\n\n≡ Videos: *${valid.length}*${faltaron}`
 
 if (valid.length === 1) {
-await conn.sendFile(chat, valid[0], 'xvideos.mp4', caption, key)
+await conn.sendFile(chat, valid[0], 'xvideos.mp4', caption, ref)
 } else {
 const medias = valid.map(u => ({ type: 'video', data: { url: u } }))
 medias[0].caption = caption
-await conn.sendSylphy(chat, medias, { quoted: key })
+await conn.sendSylphy(chat, medias, { quoted: ref })
 }
 await conn.sendMessage(chat, { react: { text: '✔️', key } })
 }
