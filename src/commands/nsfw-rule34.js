@@ -4,19 +4,56 @@ const API_KEY = "a4e807dd6d4c9e55768772996946e4074030ec02c49049d291e5edb8808a97b
 const USER_ID = "5753302"
 
 // Función auxiliar para consultar la API
+// FIX: la API responde HTTP 200 pero con CUERPO VACÍO cuando el tag no existe;
+// JSON.parse('') lanzaba y el bot mostraba "Cero archivos" sin pista alguna.
+// Ahora el cuerpo vacío se maneja explícitamente como "sin resultados".
 const fetchPosts = async (tags) => {
     try {
         const url = `https://api.rule34.xxx/index.php?page=dapi&s=post&q=index&json=1&limit=600&tags=${encodeURIComponent(tags)}&api_key=${API_KEY}&user_id=${USER_ID}`
-        const res = await fetch(url, { 
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': 'application/json' } 
+        const res = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept': 'application/json' }
         })
         if (!res.ok) return []
         const text = await res.text()
+        if (!text || !text.trim()) return []
         const json = JSON.parse(text)
         return Array.isArray(json) ? json : json?.post || json?.data || []
     } catch {
         return []
     }
+}
+
+// RESTAURADO: menú de tags adaptado. Cuando un tag no tiene resultados, el bot
+// muestra tags parecidos con su número de posts (autocomplete de Rule34).
+// El endpoint no acepta espacios: se normaliza con "_" y si nada coincide se
+// reintenta con la primera palabra (ej: "mika misono" → "mika_misono" → "mika").
+const suggestTags = async (q) => {
+    const query = (q || '').trim().toLowerCase().replace(/\s+/g, '_')
+    if (!query) return []
+    const intentos = [query]
+    const primera = query.split('_')[0]
+    if (primera && primera !== query) intentos.push(primera)
+    for (const intento of intentos) {
+        try {
+            const res = await fetch(`https://api.rule34.xxx/autocomplete.php?q=${encodeURIComponent(intento)}`, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+            })
+            if (!res.ok) continue
+            const text = await res.text()
+            if (!text || !text.trim()) continue
+            const json = JSON.parse(text)
+            if (Array.isArray(json) && json.length) {
+                return json.slice(0, 10).map(x => {
+                    const match = /\((\d+)\)\s*$/.exec(x.label || '')
+                    return {
+                        tag: x.value || (x.label || '').replace(/\s*\(\d+\)\s*$/, ''),
+                        count: match ? parseInt(match[1], 10) : 0
+                    }
+                }).filter(x => x.tag)
+            }
+        } catch { /* intenta el siguiente */ }
+    }
+    return []
 }
 
 const handler = async (m, { conn, args, usedPrefix, command }) => {
@@ -28,7 +65,7 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
 
     // 2. Validación de Argumentos
     if (!args[0]) {
-        return m.reply(`Esto... ¿Realmente quieres que haga esto?... *Pervertido.*\n\n> *Ejemplo:*\n*${usedPrefix + command} mika_misono*`)
+        return m.reply(`Esto... ¿Realmente quieres que haga esto?... *Pervertido.*\n\n> *Ejemplo:*\n*${usedPrefix + command} mika_misono*\n\n> Tip: los tags van con _ en vez de espacios. Si un tag no existe, te muestro los parecidos.`)
     }
 
     // 3. Detección de Modo Solo Video y Limpieza de Tags
@@ -117,7 +154,18 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
 
         if (!medias.length) {
             await m.react('❌')
-            return m.reply(`*Cero ${onlyVideo ? 'vídeos' : 'archivos válidos'} encontrados.* 🦈\nNo hay resultados para "${cleanTag}".`)
+            // RESTAURADO: menú de tags parecidos en vez del "Cero archivos" seco.
+            // Así el usuario descubre el tag correcto (suele faltar el "_").
+            const sugerencias = await suggestTags(cleanTag)
+            if (sugerencias.length) {
+                let menu = `ꕤ No hay resultados para *${cleanTag}*.\n\nPero encontré estos tags en *Rule34*:\n\n`
+                sugerencias.forEach((s, i) => {
+                    menu += `❀ *${i + 1}.* ${s.tag}${s.count ? ` _(${s.count.toLocaleString('es')} posts)_` : ''}\n`
+                })
+                menu += `\n> Copia el tag y úsalo así: *${usedPrefix || ''}${command} ${sugerencias[0].tag}*`
+                return m.reply(menu)
+            }
+            return m.reply(`*Cero ${onlyVideo ? 'vídeos' : 'archivos válidos'} encontrados.* 🦈\nNo hay resultados para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)
         }
 
         const caption = onlyVideo
@@ -139,3 +187,4 @@ handler.tags = ['nsfw']
 handler.command = ['r34', 'rule34', 'r34vid', 'rule34vid', 'rule', 'rulevid']
 
 export default handler
+export { fetchPosts, suggestTags }
