@@ -179,7 +179,8 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
 
 handler.help = ['tiktok <URL>'];
 handler.tags = ['descargas'];
-handler.command = ['tiktok', 'tt'];
+// aliases tiktoks/tts restaurados (existían en la versión auditada y se habían perdido)
+handler.command = ['tiktok', 'tt', 'tiktoks', 'tts'];
 handler.register = true;
 
 export default handler;
