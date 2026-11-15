@@ -1,6 +1,7 @@
 import axios from 'axios'
 import cheerio from 'cheerio'
 import { sticker } from '../../lib/sticker.js'
+import { ffmpeg } from '../../lib/converter.js'
 
 let handler = async (m, { conn, text, args, usedPrefix }) => {
     if (!text) return m.reply(`ꕤ Por favor, ingresa lo que deseas buscar por Pinterest.\n> Tip: agrega .s al final para recibir stickers.`)
@@ -17,8 +18,9 @@ let handler = async (m, { conn, text, args, usedPrefix }) => {
             // FIX: dl() devuelve { msg } cuando falla; antes i.download.includes lanzaba
             // TypeError y el usuario veía "Se ha producido un problema" sin contexto.
             if (i.msg || !i.download) return m.reply(`ꕥ ${i.msg || 'No pude descargar ese pin, inténtalo de nuevo.'}`)
-            let isVideo = i.download.includes(".mp4")
-            await conn.sendMessage(m.chat, { [isVideo ? "video" : "image"]: { url: i.download }, caption: i.title }, { quoted: m })
+            // FIX: antes se detectaba "video" solo si la URL terminaba en .mp4; un GIF se
+            // enviaba como imagen (no se veía animado) y un m3u8/webm explotaba igual.
+            await sendPinMedia(conn, m, i.download, i.title)
         } else {
             // 1º alyacore (API estable), 2º el scrape clásico como reserva
             let results = []
@@ -33,31 +35,29 @@ let handler = async (m, { conn, text, args, usedPrefix }) => {
                 return m.reply(`ꕥ No se encontraron resultados para "${query}".`)
             }
 
-            // --- MEZCLA Y SELECCIÓN DE 10 ---
+            // --- MEZCLA Y SELECCIÓN DE 10 (imágenes + videos) ---
             const shuffled = results.sort(() => 0.5 - Math.random())
             const maxResults = Math.min(shuffled.length, 10)
-            const medias = []
+            const sel = shuffled.slice(0, maxResults)
+            // FIX: los pines con video/gif llegaban filtrados (solo se tomaba images.orig,
+            // o sea la miniatura). Ahora los videos se mandan aparte como video de verdad.
+            const videosSel = sel.filter(x => x.video_url).slice(0, 3)
+            const imagesSel = sel.filter(x => !x.video_url)
 
-            for (let i = 0; i < maxResults; i++) {
-                medias.push({
-                    type: 'image',
-                    data: { url: shuffled[i].image_large_url }
-                })
-            }
-
-            const caption = `\`❏ Descarga - Pinterest\`\n──────────────────\n> ✰ *Tema:* ${query}\n> ✧ Encontré ${medias.length} ${wantsSticker ? 'stickers' : 'imágenes'} aleatorias para ti.`
+            const caption = `\`❏ Descarga - Pinterest\`\n──────────────────\n> ✰ *Tema:* ${query}\n> ✧ Encontré ${imagesSel.length} ${wantsSticker ? 'stickers' : 'imágenes'}${videosSel.length ? ` y ${videosSel.length} video${videosSel.length > 1 ? 's' : ''}` : ''} aleatorios para ti.`
 
             if (wantsSticker) {
-                // Modo sticker: convertir cada imagen con el mismo metodo del bot
+                // Modo sticker: los videos no se pueden convertir con el método del bot, solo imágenes
+                if (!imagesSel.length) return m.reply(`ꕤ Solo encontré videos para ese tema y no se pueden hacer stickers. Prueba con otro término.`)
                 await conn.sendMessage(m.chat, { text: caption }, { quoted: m })
 
                 const pack = global.packsticker
                 const author = global.packsticker2
 
                 let enviados = 0
-                for (const media of medias) {
+                for (const media of imagesSel) {
                     try {
-                        const res = await axios.get(media.data.url, {
+                        const res = await axios.get(media.image_large_url, {
                             responseType: 'arraybuffer',
                             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
                         })
@@ -78,11 +78,22 @@ let handler = async (m, { conn, text, args, usedPrefix }) => {
                 // FIX: sendSylphy lanza RangeError con 1 sola imagen (mínimo 2) y además
                 // IGNORA options.caption (solo usa medias[i].caption). Casos cubiertos:
                 // 1 resultado → envío simple con caption; álbum → caption en el primer media.
-                if (medias.length === 1) {
-                    await conn.sendMessage(m.chat, { image: { url: medias[0].data.url }, caption }, { quoted: m })
-                } else {
+                if (imagesSel.length === 1) {
+                    await conn.sendMessage(m.chat, { image: { url: imagesSel[0].image_large_url }, caption }, { quoted: m })
+                } else if (imagesSel.length > 1) {
+                    const medias = imagesSel.map(x => ({ type: 'image', data: { url: x.image_large_url } }))
                     medias[0].caption = caption
                     await conn.sendSylphy(m.chat, medias, { quoted: m })
+                } else {
+                    // solo videos: el caption va como texto antes de los videos
+                    await conn.sendMessage(m.chat, { text: caption }, { quoted: m })
+                }
+                // los videos salen uno a uno (WhatsApp no mezcla video en álbum de imágenes)
+                for (const v of videosSel) {
+                    try {
+                        await sendPinMedia(conn, m, v.video_url, v.title || '')
+                        await new Promise(r => setTimeout(r, 1500))
+                    } catch { continue }
                 }
             }
         }
@@ -97,6 +108,49 @@ handler.tags = ["descargas"]
 handler.group = true
 
 export default handler
+export { sendPinMedia, isVideoUrl }
+
+// --- FUNCIONES AUXILIARES ---
+
+const VIDEO_RE = /\.(mp4|mov|webm|m4v|3gp|mkv)(\?|#|$)/i
+const GIF_RE = /\.gif(\?|#|$)/i
+
+function isVideoUrl(u) {
+    return VIDEO_RE.test(u || '')
+}
+
+// FIX: envía el pin según su tipo real. Videos por URL, GIFs descargados y
+// convertidos a mp4 con ffmpeg (gifPlayback: true para que WhatsApp los
+// reproduciga en loop como gif), el resto como imagen.
+async function sendPinMedia(conn, m, url, title = '') {
+    if (GIF_RE.test(url)) {
+        try {
+            const res = await axios.get(url, { responseType: 'arraybuffer', headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 30000 })
+            // mp4 silencioso compatible con WhatsApp: yuv420p + faststart + dimensiones pares
+            const out = await ffmpeg(Buffer.from(res.data), [
+                '-r', '20',
+                '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,format=yuv420p',
+                '-movflags', 'faststart',
+                '-c:v', 'libx264', '-preset', 'fast', '-crf', '24', '-an',
+            ], 'gif', 'mp4')
+            try {
+                await conn.sendMessage(m.chat, { video: out.data, gifPlayback: true, mimetype: 'video/mp4', caption: title || undefined }, { quoted: m })
+            } finally {
+                await out.delete?.()
+            }
+            return
+        } catch {
+            return m.reply(`ꕥ El pin es un GIF y no pude convertirlo a video. Inténtalo de nuevo.`)
+        }
+    }
+    if (isVideoUrl(url)) {
+        await conn.sendMessage(m.chat, { video: { url }, mimetype: 'video/mp4', caption: title || undefined }, { quoted: m })
+        return
+    }
+    // HLS: WhatsApp no lo reproduce; mejor un aviso claro que una imagen rota
+    if (/\.m3u8(\?|#|$)/i.test(url)) return m.reply(`ꕥ Ese pin es un video en formato HLS que WhatsApp no puede reproducir. Prueba con otro enlace.`)
+    await conn.sendMessage(m.chat, { image: { url }, caption: title || undefined }, { quoted: m })
+}
 
 // --- LAS FUNCIONES SIGUIENTES SE MANTIENEN EXACTAMENTE IGUAL ---
 async function getPinInfo(imageData) {
@@ -160,17 +214,21 @@ const pins = async (judul) => {
     try {
         const res = await axios.get(link, { headers })
         if (res.data && res.data.resource_response && res.data.resource_response.data && res.data.resource_response.data.results) {
+            // FIX: además de la imagen (miniatura si es video), extrae el mp4 real del
+            // pin desde videos.video_list (ignora HLS .m3u8, que WhatsApp no reproduce).
             return res.data.resource_response.data.results.map(item => {
-                if (item.images) {
-                    return {
-                        image_large_url: item.images.orig?.url || null,
-                        pinner: item.pinner,
-                        title: item.title,
-                        board: item.board,
-                        id: item.id,
-                        url: item.url
-                    }
+                const vlist = item.videos?.video_list || {}
+                const mp4 = Object.values(vlist).map(v => v?.url).find(u => /\.mp4(\?|#|$)/i.test(u || '')) || null
+                const out = {
+                    image_large_url: item.images?.orig?.url || null,
+                    video_url: mp4,
+                    pinner: item.pinner,
+                    title: item.title,
+                    board: item.board,
+                    id: item.id,
+                    url: item.url
                 }
+                if (out.video_url || out.image_large_url) return out
                 return null
             }).filter(img => img !== null)
         }
