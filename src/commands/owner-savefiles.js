@@ -10,7 +10,10 @@ switch (command) {
 case 'saveplugin': {
 if (!text) return m.reply(`ꕤ Por favor, ingrese el nombre del plugin.`)
 if (!m.quoted || !m.quoted.text) return m.reply(`✧ Responda al mensaje con el contenido del plugin.`)
-const ruta = `src/commands/${text}.js`
+// FIX (seguridad): el nombre iba directo a la ruta → path traversal posible
+// ("../../index" escribiría fuera de src/commands). Whitelist estricta.
+if (!/^[a-zA-Z0-9_-]+$/.test(text.trim())) return m.reply(`✧ Nombre de plugin inválido. Usa solo letras, números, guiones y guion bajo (sin rutas).`)
+const ruta = `src/commands/${text.trim()}.js`
 await fs.writeFileSync(ruta, m.quoted.text)
 m.reply(`ꕤ Guardando plugin en ${ruta}`)
 break
@@ -18,7 +21,9 @@ break
 case 'savefile': {
 if (!text) return m.reply(`ꕤ Ingresa la Ruta y el nombre del Archivo junto al comando.`)
 if (!m.quoted?.text) return m.reply(`ꕥ Responde al mensaje.`)
-const path = `${text}.js`
+// FIX (seguridad): se bloquea path traversal ("..") y rutas absolutas.
+if (/(^|\/)\.\.($|\/)/.test(text.trim()) || text.trim().startsWith('/') || text.trim().includes('\\')) return m.reply(`✧ Ruta inválida: no uses "..", rutas absolutas ni backslashes.`)
+const path = `${text.trim()}.js`
 await fs.writeFileSync(path, m.quoted.text)
 m.reply(`ꕤ Guardado en *${path}*.`)
 break
@@ -26,6 +31,9 @@ break
 case 'deletefile': {
 if (!text) return m.reply(`ꕤ Ingresa la ruta y el nombre del archivo que deseas eliminar.`)
 const file = text.trim()
+// FIX (seguridad): bloquear borrado por path traversal / archivos críticos.
+if (/(^|\/)\.\.($|\/)/.test(file) || file.startsWith('/') || file.includes('\\')) return m.reply(`✧ Ruta inválida: no uses ".." ni rutas absolutas.`)
+if (file === 'src/commands' || file.startsWith('Sessions/') || file.startsWith('Sessions')) return m.reply(`✧ No se permiten borrar sesiones ni carpetas.`)
 if (!existsSync(file)) return m.reply(`ꕥ Archivo no encontrado.`)
 unlinkSync(file)
 m.reply(`ꕤ El archivo *${file}* ha sido eliminado con éxito.`)

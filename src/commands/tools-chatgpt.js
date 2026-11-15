@@ -1,13 +1,39 @@
 import fetch from 'node-fetch'
 
-const API_URL = 'https://rest.apicausas.xyz/api/v1/ai?apikey=causa-ee5ee31dcfc79da4'
-const INACTIVITY_LIMIT = 10 * 60 * 1000 
-const chatMemory = {} 
+// ─────────────────────────────────────────────────────────────
+// CADENA DE IA (reemplaza apicausas/vreden/deliriusapi/widipe, dominios muertos)
+//  1. text.pollinations.ai → gratuita, sin key, responde texto plano
+//  2. alyacore /ai/copilot → reserva (estaba offline temporalmente)
+// ─────────────────────────────────────────────────────────────
+
+const ALYACORE_KEY = 'oboe'
+const INACTIVITY_LIMIT = 10 * 60 * 1000
+const chatMemory = {}
+
+async function iaPollinations(prompt) {
+    const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(prompt), {
+        signal: AbortSignal.timeout(60000)
+    })
+    if (!r.ok) throw new Error(`pollinations HTTP ${r.status}`)
+    const texto = await r.text()
+    if (!texto || texto.length < 1) throw new Error('pollinations respondió vacío')
+    return texto
+}
+
+async function iaAlyacore(prompt) {
+    const r = await fetch(`https://api.alyacore.xyz/ai/copilot?text=${encodeURIComponent(prompt)}&key=${ALYACORE_KEY}`, {
+        signal: AbortSignal.timeout(60000)
+    })
+    const j = await r.json().catch(() => null)
+    const texto = j?.data?.response || j?.data?.text || j?.result || j?.data?.message
+    if (!j?.status || !texto) throw new Error('alyacore sin respuesta útil')
+    return texto
+}
 
 let handler = async (m, { conn, text, usedPrefix, command, participants, isPrems }) => {
     const chatId = m.chat
     const isGroup = m.isGroup
-    
+
     // Nombre dinámico del bot (fallback a Rory Mercury)
     const botname = global.botname || 'Rory Mercury'
 
@@ -37,54 +63,31 @@ let handler = async (m, { conn, text, usedPrefix, command, participants, isPrems
         // Personalidad de Rory Mercury (GATE)
         const roryPrompt = `Tu nombre es ${botname}, una apóstol del dios Emroy (diosa de la guerra y la muerte) inspirada en Rory Mercury del anime GATE. Eres coqueta, un poco gótica, confiada, sarcástica pero siempre útil con el usuario (${userName}, rol: ${role}). Responde de forma directa, inteligente y con un toque de superioridad juguetona. IMPORTANTE: Usa máximo 1 o 2 emojis por mensaje.`
 
-        // API Principal
-        try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: "google/gemini-2.0-flash-001", 
-                    q: `${roryPrompt}\n\nPregunta: ${text}`,
-                    history: memory.history 
-                })
-            })
+        // historial reciente incluido en el prompt (las APIs de reserva no mantienen sesión)
+        const contexto = memory.history.slice(-6)
+            .map(h => `${h.role === 'user' ? userName : botname}: ${h.content}`)
+            .join('\n')
+        const promptCompleto = `${roryPrompt}${contexto ? `\n\nConversación anterior:\n${contexto}` : ''}\n\nPregunta: ${text}\n\nResponde SOLO como ${botname}, sin prefijos ni acotaciones.`
 
-            const res = await response.json()
-
-            if (res.status && res.reply) {
-                memory.history = res.history || []
-                if (memory.history.length > 15) memory.history = memory.history.slice(-15)
-
-                await m.react('✅')
-                return await conn.sendMessage(m.chat, { text: res.reply.trim() }, { quoted: m })
-            }
-        } catch (apiError) {
-            console.log("Error en API principal, intentando backups...")
-        }
-
-        // Backups de contingencia
-        const backups = [
-            `https://api.vreden.web.id/api/ai/gpt4?prompt=${encodeURIComponent(roryPrompt)}&query=${encodeURIComponent(text)}`,
-            `https://api.deliriusapi.com/ia/gptweb?text=${encodeURIComponent(roryPrompt + " " + text)}`,
-            `https://widipe.com/prompt/gpt-4o?prompt=${encodeURIComponent(roryPrompt)}&text=${encodeURIComponent(text)}`
-        ]
-
-        let backupText = null
-        for (const url of backups) {
+        // cadena: pollinations → alyacore
+        let respuesta = null
+        for (const api of [iaPollinations, iaAlyacore]) {
             try {
-                const bRes = await fetch(url)
-                const bJson = await bRes.json()
-                backupText = bJson.result || bJson.gpt || bJson.response || (bJson.data && bJson.data.content)
-                if (backupText) break
-            } catch (e) { continue }
+                respuesta = await api(promptCompleto)
+                if (respuesta) break
+            } catch (e) {
+                console.log(`[IA] ${e.message}, probando la siguiente...`)
+            }
         }
 
-        if (backupText) {
-            await m.react('✅')
-            await conn.sendMessage(m.chat, { text: backupText.trim() }, { quoted: m })
-        } else {
-            throw new Error('Sin conexión')
-        }
+        if (!respuesta) throw new Error('Sin conexión')
+
+        memory.history.push({ role: 'user', content: text })
+        memory.history.push({ role: 'bot', content: respuesta.trim() })
+        if (memory.history.length > 15) memory.history = memory.history.slice(-15)
+
+        await m.react('✅')
+        await conn.sendMessage(m.chat, { text: respuesta.trim() }, { quoted: m })
 
     } catch (error) {
         await m.react('❌')

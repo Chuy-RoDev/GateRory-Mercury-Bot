@@ -8156,6 +8156,19 @@
           "https://safebooru.org//images/4619/4096eab00e22f76e810aaa4b10457d2710642ae8.jpg?5003229",
           "https://safebooru.org//images/4049/6618f62031c006361c2768c1c941edae0625cf28.jpg?4230895"
         ]
+      },
+      {
+        "id": "1455",
+        "name": "Tyuule",
+        "gender": "Mujer",
+        "tags": [
+          "tyuule",
+          "gate"
+        ],
+        "value": 7000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/126996-IT8hwtelSwQD.jpg"
+        ]
       }
     ]
   },
@@ -8613,6 +8626,76 @@
           "https://i.pinimg.com/originals/90/79/ea/9079ea07c18bb05deab26860de77fec1.jpg",
           "https://i.pinimg.com/originals/b1/68/7a/b1687ab7097f6b0c397696f29ff0178b.jpg",
           "https://i.pinimg.com/originals/e8/5e/f0/e85ef0c6be7e2577598b272332639aa7.jpg"
+        ]
+      },
+      {
+        "id": "1464",
+        "name": "Naddy",
+        "gender": "Mujer",
+        "tags": [
+          "naddy",
+          "nadeshiko_yamato",
+          "the_100_girlfriends"
+        ],
+        "value": 6000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b227073-wEMvUNZpvDfi.jpg"
+        ]
+      },
+      {
+        "id": "1465",
+        "name": "Momoha Bonnouji",
+        "gender": "Mujer",
+        "tags": [
+          "momoha_bonnouji",
+          "momoha",
+          "the_100_girlfriends"
+        ],
+        "value": 5000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b286553-UYGY10gHFuQP.png"
+        ]
+      },
+      {
+        "id": "1466",
+        "name": "Uto Nakaji",
+        "gender": "Mujer",
+        "tags": [
+          "uto_nakaji",
+          "uto",
+          "the_100_girlfriends"
+        ],
+        "value": 5000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b284128-LY5SK2Vp0Mhk.png"
+        ]
+      },
+      {
+        "id": "1467",
+        "name": "Yaku Yakuzen",
+        "gender": "Mujer",
+        "tags": [
+          "yaku_yakuzen",
+          "yaku",
+          "the_100_girlfriends"
+        ],
+        "value": 7000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b254932-S5o2YF8Q7xKM.png"
+        ]
+      },
+      {
+        "id": "1468",
+        "name": "Rin Baio",
+        "gender": "Mujer",
+        "tags": [
+          "rin_baio",
+          "rin",
+          "the_100_girlfriends"
+        ],
+        "value": 6000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b290793-c2tukBuUGVMK.png"
         ]
       }
     ]
@@ -12833,6 +12916,45 @@
           "https://safebooru.org//images/1893/59f6173c480595a7cbf055bb20408fd9e41ee832.jpeg?1975417",
           "https://safebooru.org//images/1057/8314256f6722235e76b08ad11c783c2b3fc51897.jpg?1095541"
         ]
+      },
+      {
+        "id": "1461",
+        "name": "Whis",
+        "gender": "Hombre",
+        "tags": [
+          "whis",
+          "dragon_ball_super"
+        ],
+        "value": 15000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b76346-BNh2DE5Rh2IW.jpg"
+        ]
+      },
+      {
+        "id": "1462",
+        "name": "Zamasu",
+        "gender": "Hombre",
+        "tags": [
+          "zamasu",
+          "dragon_ball_super"
+        ],
+        "value": 11000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/126882-NQ14AE5TZCCr.jpg"
+        ]
+      },
+      {
+        "id": "1463",
+        "name": "Vados",
+        "gender": "Mujer",
+        "tags": [
+          "vados",
+          "dragon_ball_super"
+        ],
+        "value": 13000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/127218-JwMt8dLYwdRr.jpg"
+        ]
       }
     ]
   },
@@ -13648,6 +13770,76 @@
           "https://safebooru.org//images/4172/4f565348c999aa57eb848bd4349d22d027ac450b.jpg?7076633",
           "https://safebooru.org//images/4426/2eb57d9a03c6cf184e2bd7ff720ddc12cc16c940.jpg?7035757",
           "https://safebooru.org//images/3914/dc43e6e7d38aa549db4c07a8e833e9a0d22f559e.jpg?7032751"
+        ]
+      },
+      {
+        "id": "1456",
+        "name": "Levi Ackerman",
+        "gender": "Hombre",
+        "tags": [
+          "levi",
+          "levi_ackerman",
+          "attack_on_titan"
+        ],
+        "value": 15000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b45627-CR68RyZmddGG.png"
+        ]
+      },
+      {
+        "id": "1457",
+        "name": "Erwin Smith",
+        "gender": "Hombre",
+        "tags": [
+          "erwin_smith",
+          "erwin",
+          "attack_on_titan"
+        ],
+        "value": 12000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b46496-Mu86MENd5wNB.png"
+        ]
+      },
+      {
+        "id": "1458",
+        "name": "Hange Zoe",
+        "gender": "Mujer",
+        "tags": [
+          "hange_zoe",
+          "hange",
+          "attack_on_titan"
+        ],
+        "value": 10000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b71121-7R7CnQd3lHgt.png"
+        ]
+      },
+      {
+        "id": "1459",
+        "name": "Annie Leonhart",
+        "gender": "Mujer",
+        "tags": [
+          "annie_leonhart",
+          "annie",
+          "attack_on_titan"
+        ],
+        "value": 9000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b46490-tan274Ifc1Jf.jpg"
+        ]
+      },
+      {
+        "id": "1460",
+        "name": "Jean Kirstein",
+        "gender": "Hombre",
+        "tags": [
+          "jean_kirstein",
+          "jean",
+          "attack_on_titan"
+        ],
+        "value": 8000,
+        "img": [
+          "https://s4.anilist.co/file/anilistcdn/character/large/b46498-ritqAj9FW6jX.png"
         ]
       }
     ]

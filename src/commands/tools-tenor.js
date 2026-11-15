@@ -1,7 +1,10 @@
 import fetch from 'node-fetch'
-import baileys from '@whiskeysockets/baileys'
+import * as baileys from '@whiskeysockets/baileys'
 
-async function sendAlbumMessage(jid, medias, options = {}) {
+// FIX: dentro de esta función "conn" no existía y resolvía a global.conn (el bot
+// PRINCIPAL) → en modo Sub-Bot los álbumes salían desde la cuenta equivocada.
+// Ahora la conexión se pasa por parámetro.
+async function sendAlbumMessage(conn, jid, medias, options = {}) {
 if (typeof jid !== "string") { throw new TypeError(`jid must be string, received: ${jid}`) }
 if (!Array.isArray(medias) || medias.length < 2) { throw new RangeError("Minimum 2 media required") }
 for (const media of medias) {
@@ -28,17 +31,26 @@ await conn.relayMessage(mediaMsg.key.remoteJid, mediaMsg.message, { messageId: m
 await baileys.delay(delay) }
 return album
 }
+// FIX: la API de tenor (delirius) está MUERTA y la API oficial de Tenor fue
+// descontinuada por Google (PERMISSION_DENIED con cualquier key). Ahora se lee
+// la búsqueda pública de tenor.com, que devuelve mp4 directos de su CDN (la
+// misma fuente de la que la API vieja tomaba los gifs).
+async function buscarGifs(query) {
+const slug = encodeURIComponent(query.trim().replace(/\s+/g, '-'))
+const res = await fetch(`https://tenor.com/search/${slug}-gifs`, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' } })
+if (!res.ok) throw new Error(`tenor.com respondió HTTP ${res.status}`)
+const html = await res.text()
+return [...new Set(html.match(/https:\/\/media\.tenor\.com\/[A-Za-z0-9_-]+\/[A-Za-z0-9_.%-]+\.mp4/g) || [])]
+}
 const handler = async (m, { conn, text, usedPrefix }) => {
 if (!text) return m.reply(`ꕤ Por favor, ingrese el texto para buscar su Gifs.`)
 try {
 await m.react('🕒')
-const res = await fetch(`${global.APIs.delirius.url}/search/tenor?q=${text}`)
-const json = await res.json()
-const gifs = json.data
+const gifs = await buscarGifs(text)
 if (!gifs || gifs.length < 2) { await m.react('✖️'); return m.reply('ꕤ No se encontraron resultados.') }
 const maxItems = Math.min(gifs.length, 10)
-const medias = gifs.slice(0, maxItems).map(gif => ({ type: 'video', data: { url: gif.mp4 } }))
-await sendAlbumMessage(m.chat, medias, { caption: `❀ G I F - S E A R C H ❀\n\n✦ Busqueda: ${text}\n✧ Resultados: ${maxItems}`, quoted: m })
+const medias = gifs.slice(0, maxItems).map(mp4 => ({ type: 'video', data: { url: mp4 } }))
+await sendAlbumMessage(conn, m.chat, medias, { caption: `❀ G I F - S E A R C H ❀\n\n✦ Busqueda: ${text}\n✧ Resultados: ${maxItems}`, quoted: m })
 await m.react('✔️')
 } catch (e) {
 await m.react('✖️')

@@ -1,65 +1,88 @@
 import fetch from 'node-fetch'
 import yts from 'yt-search'
+import axios from 'axios'
+import ffmpeg from 'fluent-ffmpeg'
+import fs from 'fs'
+import path from 'path'
 
-const KZM_KEY = 'kzm-AkpQk-lKhaizmu'
-const KZM_URL = 'rest.kazuma.giize.com'
+// ─────────────────────────────────────────────────────────────
+// DESCARGA DE YOUTUBE (reemplaza savenow/kazuma, muertos)
+//  1. InnerTube (API interna de YouTube, cliente ANDROID_VR) — sin terceros,
+//     devuelve el mp4 progressive 360p con audio (itag 18). El mp3 se extrae
+//     con ffmpeg de ese mismo mp4. Los enlaces googlevideo van ligados a la IP
+//     que los pidió, por eso se descarga en buffer desde el propio servidor.
+//  2. Cobalt (solo si se configura global.COBALT_API_KEY, opcional)
+// ─────────────────────────────────────────────────────────────
 
-const savenow = {
-    key: 'dfcb6d76f2f6a9894gjkege8a4ab232222',
-    agent: 'Mozilla/5.0 (Android 13; Mobile; rv:146.0) Gecko/146.0 Firefox/146.0',
-    referer: 'https://y2down.cc/enSB/',
-    ytdl: async function(url, format) {
-        try {
-            const init = await fetch(`https://p.savenow.to/ajax/download.php?copyright=0&format=${format}&url=${encodeURIComponent(url)}&api=${this.key}`, {
-                headers: { 'User-Agent': this.agent, 'Referer': this.referer }
-            })
-            const data = await init.json()
-            if (!data.success) return { error: data.message || 'Error' }
-            const progressUrl = `https://p.savenow.to/api/progress?id=${data.id}`
-            let attempts = 0
-            while (attempts < 15) {
-                await new Promise(r => setTimeout(r, 2000))
-                attempts++
-                const res = await fetch(progressUrl, { headers: { 'User-Agent': this.agent, 'Referer': this.referer } })
-                const status = await res.json()
-                if (status.progress === 1000) return { title: data.title, link: status.download_url }
-            }
-            return { error: 'Tiempo de espera agotado.' }
-        } catch (e) { return { error: e.message } }
-    }
+const VRC = {
+    client: { clientName: 'ANDROID_VR', clientVersion: '1.60.19', androidSdkVersion: 32, hl: 'es', osName: 'Android', osVersion: '12' },
+    ua: 'com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 12; eureka-user Build/SQ3A.220605.009.A1) gzip'
 }
 
-// Función para competir ambas APIs al mismo tiempo (gana la que responda primero)
-const raceDownload = async (url, formatType) => {
-    const kzmPromise = (async () => {
-        const endpoint = formatType === 'mp3' ? 'ytaudio' : 'ytmp4'
-        const res = await fetch(`https://${KZM_URL}/api/download/${endpoint}?url=${encodeURIComponent(url)}&apiKey=${KZM_KEY}`)
-        const json = await res.json()
-        if (json.status && json.result?.download_url) {
-            return { link: json.result.download_url, title: json.result.title }
-        }
-        throw new Error('KZM falló')
-    })()
-
-    const savenowPromise = (async () => {
-        if (formatType === 'mp3') {
-            const dl = await savenow.ytdl(url, 'mp3')
-            if (!dl.error && dl.link) return { link: dl.link, title: dl.title }
-        } else {
-            const resoluciones = ['480', '360', '720', 'mp4']
-            for (const res of resoluciones) {
-                const dl = await savenow.ytdl(url, res)
-                if (!dl.error && dl.link) return { link: dl.link, title: dl.title }
-            }
-        }
-        throw new Error('SaveNow falló')
-    })()
-
-    try {
-        return await Promise.any([kzmPromise, savenowPromise])
-    } catch {
-        throw new Error('Todas las APIs de descarga fallaron.')
+async function innertube(videoId) {
+    const pedir = async () => {
+        const r = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': VRC.ua,
+                'X-Youtube-Client-Name': '3',
+                'X-Youtube-Client-Version': '1.60.19'
+            },
+            body: JSON.stringify({ context: { client: VRC.client }, videoId, contentCheckOk: true, racyCheckOk: true }),
+            signal: AbortSignal.timeout(25000)
+        })
+        return await r.json().catch(() => null)
     }
+
+    let d = await pedir()
+    // YouTube a veces marca la IP como bot en ráfagas de peticiones: un reintento
+    // tras una pequeña espera suele resolverlo
+    if (!d || d?.playabilityStatus?.status !== 'OK') {
+        await new Promise(r => setTimeout(r, 2500))
+        d = await pedir()
+    }
+    if (!d || d?.playabilityStatus?.status !== 'OK') {
+        throw new Error(d?.playabilityStatus?.reason || 'YouTube no dejó ver ese video.')
+    }
+    const muxed = (d.streamingData?.formats || []).filter(f => f.url).sort((a, b) => (b.height || 0) - (a.height || 0))[0]
+    if (!muxed?.url) throw new Error('YouTube no devolvió el formato descargable.')
+    return { url: muxed.url, titulo: d.videoDetails?.title || '', bytes: muxed.contentLength || 0 }
+}
+
+async function cobalt(url) {
+    if (!global.COBALT_API_KEY) return null
+    const headers = { 'Accept': 'application/json', 'Content-Type': 'application/json', Authorization: `Api-Key ${global.COBALT_API_KEY}` }
+    const api = global.COBALT_API_URL || 'https://api.cobalt.tools/'
+    const r = await fetch(api, {
+        method: 'POST', headers,
+        body: JSON.stringify({ url, videoQuality: '360', filenameStyle: 'basic' }),
+        signal: AbortSignal.timeout(25000)
+    })
+    const j = await r.json().catch(() => null)
+    if (!j?.url || ['error', 'picker'].includes(j?.status)) return null
+    return { url: j.url, titulo: String(j.filename || '').replace(/\.[a-z0-9]+$/i, '') }
+}
+
+function bufferAMp3(buffer, titulo) {
+    const tmp = path.join(process.cwd(), 'tmp')
+    if (!fs.existsSync(tmp)) fs.mkdirSync(tmp, { recursive: true })
+    const entrada = path.join(tmp, `yt_${Date.now()}.mp4`)
+    const salida = path.join(tmp, `yt_${Date.now()}.mp3`)
+    fs.writeFileSync(entrada, buffer)
+    return new Promise((resolve, reject) => {
+        ffmpeg(entrada).audioCodec('libmp3lame').audioBitrate(128).toFormat('mp3')
+            .on('end', () => {
+                const mp3 = fs.readFileSync(salida)
+                for (const f of [entrada, salida]) { try { fs.unlinkSync(f) } catch { } }
+                resolve(mp3)
+            })
+            .on('error', (e) => {
+                for (const f of [entrada, salida]) { try { fs.unlinkSync(f) } catch { } }
+                reject(new Error('No pude convertir el audio: ' + e.message))
+            })
+            .save(salida)
+    })
 }
 
 const handler = async (m, { conn, text, usedPrefix, command }) => {
@@ -73,7 +96,7 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
         `╰─────────────────`
     )
 
-    const isAudio = ['play', 'ytmp3', 'playaudio'].includes(command)
+    const isAudio = ['play', 'ytmp3', 'playaudio', 'ytaudio', 'mp3'].includes(command)
     await m.react('⏳')
 
     try {
@@ -103,23 +126,33 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
                 `╰─────────────────`
         }, { quoted: m })
 
-        const formatType = isAudio ? 'mp3' : 'mp4'
-        const result = await raceDownload(v.url, formatType)
-        const downloadUrl = result.link
-        const finalTitle = result.title || v.title
+        // cadena: InnerTube → Cobalt (si hay key)
+        let fuente = null, titulo = v.title
+        try {
+            fuente = await innertube(v.videoId)
+            titulo = fuente.titulo || titulo
+        } catch (e1) {
+            fuente = await cobalt(v.url)
+            if (!fuente) throw e1
+            titulo = fuente.titulo || titulo
+        }
+
+        const r = await axios.get(fuente.url, { responseType: 'arraybuffer', timeout: 300000, maxContentLength: Infinity, headers: { 'User-Agent': VRC.ua } })
+        const buffer = Buffer.from(r.data)
 
         if (isAudio) {
+            const mp3 = await bufferAMp3(buffer, titulo)
             await conn.sendMessage(m.chat, {
-                audio: { url: downloadUrl },
+                audio: mp3,
                 mimetype: 'audio/mpeg',
-                fileName: `${finalTitle}.mp3`
+                fileName: `${titulo.slice(0, 50)}.mp3`
             }, { quoted: m })
         } else {
             await conn.sendMessage(m.chat, {
-                video: { url: downloadUrl },
+                video: buffer,
                 caption:
                     `╭─「 🎬 𝗩𝗶𝗱𝗲𝗼 」\n` +
-                    `│ ✦ *${finalTitle}*\n` +
+                    `│ ✦ *${titulo}*\n` +
                     `│ _Descarga completada._ ✅\n` +
                     `╰─────────────────`,
                 mimetype: 'video/mp4',
@@ -142,5 +175,5 @@ const handler = async (m, { conn, text, usedPrefix, command }) => {
 
 handler.help = ['play <nombre o link>', 'ytmp4 <nombre o link>']
 handler.tags = ['descargas']
-handler.command = ['play', 'play2', 'ytmp3', 'ytmp4', 'playaudio', 'ytaudio', 'mp4']
+handler.command = ['play', 'play2', 'ytmp3', 'ytmp4', 'playaudio', 'ytaudio', 'mp3', 'mp4']
 export default handler

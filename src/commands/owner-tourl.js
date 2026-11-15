@@ -152,22 +152,40 @@ const handler = async (m, { conn, command, usedPrefix }) => {
       }
     }
 
-    const form = new FormData()
-    form.append('file', fs.createReadStream(finalPath))
-
-    const res = await axios.post('https://cdn.russellxz.click/upload.php', form, {
-      headers: form.getHeaders(),
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      timeout: 120000, // 2 minutos timeout
-    })
-
-    if (!res.data?.url) {
-      throw new Error('No se recibió URL del servidor de subida')
+    // cadena de subida: dix.lat (rápido) → catbox (reserva). Russell y Telegra están muertos.
+    const subirDix = async () => {
+      const f = new FormData()
+      f.append('file', fs.createReadStream(finalPath))
+      const r = await axios.post('https://cdn.dix.lat/upload', f, {
+        headers: f.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        timeout: 120000,
+      })
+      if (!r.data?.status || !r.data?.data?.url) throw new Error('dix.lat sin URL')
+      return r.data.data.url
+    }
+    const subirCatbox = async () => {
+      const f = new FormData()
+      f.append('reqtype', 'fileupload')
+      f.append('fileToUpload', fs.createReadStream(finalPath))
+      const r = await axios.post('https://catbox.moe/user/api.php', f, {
+        headers: f.getHeaders(),
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+        timeout: 120000,
+      })
+      const url = String(r.data || '').trim()
+      if (!/^https?:\/\//.test(url)) throw new Error('catbox sin URL')
+      return url
     }
 
+    let enlace = null
+    try { enlace = await subirDix() } catch { enlace = null }
+    if (!enlace) enlace = await subirCatbox()
+
     await conn.sendMessage(chatId, {
-      text: `> ꕤ Subido correctamente\n\n> ${res.data.url}`
+      text: `> ꕤ Subido correctamente\n\n> ${enlace}`
     }, { quoted: m })
 
     await conn.sendMessage(chatId, { react: { text: '✅', key: m.key } })

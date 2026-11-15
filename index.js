@@ -2,6 +2,11 @@ process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '1'
 
 import './src/config.js'
 import './src/commands/main-allfake.js'
+// ANTIBAN: capa anti-detección/anti-ban. Debe cargarse ANTES de main.js para que
+// makeWASocket (lib/simple.js) ya encuentre global.__antiban al crear cada socket.
+// Es autocontenida (0 dependencias nuevas) y si fallara al cargar, el bot arranca
+// normal porque simple.js solo la usa si global.__antiban existe.
+import './lib/antiban.js'
 import cfonts from 'cfonts'
 import { createRequire } from 'module'
 import { fileURLToPath, pathToFileURL } from 'url'
@@ -84,14 +89,31 @@ function asegurarFFmpeg() {
   }
 
   console.log(chalk.yellow('⚠ ffmpeg no encontrado. Instalando automáticamente...'))
-  try {
-    execSync('sudo apt-get update -y && sudo apt-get install -y ffmpeg', { stdio: 'inherit' })
-    if (verificarFFmpeg()) {
-      console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado correctamente'))
-      return true
+  // FIX (compatibilidad Termux / cloud): antes solo se intentaba
+  // "sudo apt-get install ffmpeg", que no existe en Termux (usa pkg) ni en otras
+  // distros (apk/dnf). Se prueban los gestores comunes en orden y se usa el
+  // primero que funcione; si ninguno está disponible, el bot arranca igual.
+  const esTermux = (process.env.PREFIX || '').includes('com.termux')
+  const esRoot = (() => { try { return process.getuid() === 0 } catch { return false } })()
+  const comandos = esTermux
+    ? ['pkg install -y ffmpeg']
+    : [
+        esRoot ? 'apt-get update -y && apt-get install -y ffmpeg' : null,
+        esRoot ? null : 'sudo apt-get update -y && sudo apt-get install -y ffmpeg',
+        'apk add --no-cache ffmpeg',
+        'dnf install -y ffmpeg',
+      ].filter(Boolean)
+
+  for (const cmd of comandos) {
+    try {
+      execSync(cmd, { stdio: 'inherit' })
+      if (verificarFFmpeg()) {
+        console.log(chalk.hex('#00FFFF')('✓ ffmpeg instalado correctamente'))
+        return true
+      }
+    } catch (e) {
+      console.log(chalk.red(`✗ Falló "${cmd.split(' ')[0]}": ${String(e.message).split('\n')[0]}`))
     }
-  } catch (e) {
-    console.log(chalk.red('✗ Error durante la instalación de ffmpeg: ' + e.message))
   }
   return false
 }
@@ -144,11 +166,19 @@ global.loadDatabase = async function loadDatabase() {
 }
 
 loadDatabase().then(() => {
-    import('./main.js').catch(console.error)
+    // FIX: si main.js fallaba al cargar (sin red, creds corruptas...), el error solo se
+    // logeaba y el proceso quedaba vivo como zombie (sin bot y sin reinicio del supervisor).
+    // Ahora salimos con código 1 para que start.sh/pm2 lo reinicie.
+    import('./main.js').catch(e => {
+        console.error(chalk.red('✗ ERROR FATAL al cargar main.js:'), e)
+        process.exit(1)
+    })
     console.log(chalk.hex('#00FFFF')('✓ Base de datos cargada correctamente'))
 
     // Reconexión de Sub-Bots en segundo plano al iniciar
-    global.rutaJadiBot = join(__dirname, `./${global.jadi}`)
+    // FIX: global.jadi ya es ruta absoluta (path.resolve más arriba); el join anterior
+    // generaba una ruta anidada inexistente y la reconexión nunca encontraba las sesiones
+    global.rutaJadiBot = global.jadi
     if (existsSync(global.rutaJadiBot)) {
         const readRutaJadiBot = readdirSync(global.rutaJadiBot)
         if (readRutaJadiBot.length > 0) {
@@ -159,6 +189,12 @@ loadDatabase().then(() => {
                     const creds = join(botPath, 'creds.json')
                     if (existsSync(creds)) {
                         setTimeout(async () => {
+                            // FIX: si main.js aún no creó global.conn (import lento), la
+                            // reconexión usaba conn=undefined y fallaba en silencio.
+                            // Esperamos hasta 60s a que el bot principal esté listo.
+                            for (let i = 0; i < 12 && !global.conn?.user; i++) {
+                                await new Promise(r => setTimeout(r, 5000))
+                            }
                             try {
                                 await roryJadiBot({
                                     pathSubBot: botPath,
@@ -169,7 +205,9 @@ loadDatabase().then(() => {
                                     command: 'qr',
                                     fromCommand: false
                                 })
-                            } catch (e) {}
+                            } catch (e) {
+                                console.error(chalk.red(`[SUB-BOT] Reconexión fallida para ${gjbts}:`), e.message)
+                            }
                         }, 10000)
                     }
                 }

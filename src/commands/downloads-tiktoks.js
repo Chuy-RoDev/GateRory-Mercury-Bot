@@ -1,263 +1,185 @@
-import axios from "axios";
-import { generateWAMessageFromContent, generateWAMessage, jidNormalizedUser } from "@fer2809fl/baileys";
-import crypto from "crypto";
-import { downloadToTmp, cleanTmp, react, firstSuccessful, UA_HEADER } from "../../src/downloader.js";
+import fetch from "node-fetch";
+import axios from 'axios';
+import ffmpeg from 'fluent-ffmpeg';
+import fs from 'fs';
+import path from 'path';
 
-const DELIRIUS_URL = "https://api.delirius.store/";
-const FAA_URL = "https://api-faa.my.id/";
+// ─────────────────────────────────────────────────────────────
+// CADENA DE APIs (reemplaza apicausas, dominio muerto)
+//  1. tikwm.com  → video HD/SD + audio + fotos (la más completa)
+//  2. alyacore   → solo video (reserva; para audio se extrae con ffmpeg)
+// ─────────────────────────────────────────────────────────────
 
-const TIKTOK_REGEX = /^(https?:\/\/)?(www\.|vm\.|vt\.)?tiktok\.com\/.*$/i;
+const ALYACORE_KEY = 'LUFFY-FIX67';
+const SIZE_LIMIT_MB = 100;
 
-const formatNumbers = (num) => {
-    if (num === undefined || num === null || num === "") return "0";
-    const n = Number(num);
-    if (!Number.isFinite(n)) return "0";
-    if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B";
-    if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M";
-    if (n >= 1e3) return (n / 1e3).toFixed(1).replace(/\.0$/, "") + "K";
-    return String(n);
-};
+const newsletterJid = '120363418071540900@newsletter';
+const newsletterName = "⏤͟͞ू⃪፝͜⁞⟡ 𝐄llen 𝐉ᴏ𝐄's 𝐒ervice";
 
-const normalizeDuration = (value) => {
-    if (value === undefined || value === null) return 0;
-    const raw = String(value).trim();
-    const match = raw.match(/(\d+(?:\.\d+)?)/);
-    if (!match) return 0;
-    const numero = Number(match[0]);
-    if (!Number.isFinite(numero) || numero <= 0) return 0;
-    return numero > 1000 ? Math.round(numero / 1000) : Math.round(numero);
-};
+const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', Referer: 'https://www.tikwm.com/' };
 
-const parseDelimitedNumber = (value) => {
-    if (value === undefined || value === null) return 0;
-    const raw = String(value).trim();
-    if (!raw) return 0;
-    if (/^\d{1,3}(?:\.\d{3})+$/.test(raw)) {
-        return Number(raw.replace(/\./g, ""));
-    }
-    const normalized = raw.replace(/,/g, "");
-    const numero = Number(normalized);
-    return Number.isFinite(numero) ? numero : 0;
-};
-
-// Función auxiliar para enviar álbumes nativos en Baileys
-async function sendAlbumMessage(sock, jid, array, quoted) {
-    const userJid = jidNormalizedUser(sock.user?.id || sock.authState?.creds?.me?.id || "");
-    const album = await generateWAMessageFromContent(jid, {
-        messageContextInfo: { messageSecret: crypto.randomBytes(32) },
-        albumMessage: {
-            expectedImageCount: array.filter((a) => "image" in a).length,
-            expectedVideoCount: array.filter((a) => "video" in a).length,
-        },
-    }, { quoted, userJid });
-
-    await sock.relayMessage(jid, album.message, { messageId: album.key.id });
-
-    for (const item of array) {
-        const img = await generateWAMessage(jid, item, { upload: sock.waUploadToServer, userJid });
-        img.message.messageContextInfo = {
-            messageSecret: crypto.randomBytes(32),
-            messageAssociation: { associationType: 1, parentMessageKey: album.key },
-        };
-        await sock.relayMessage(jid, img.message, { messageId: img.key.id });
-    }
-    return album;
-}
-
-// Scrapers de descarga
-async function downloadDelirius(url) {
-    const res = await axios.get(`${DELIRIUS_URL}download/tiktok?url=${encodeURIComponent(url)}`, {
-        timeout: 30000,
-        headers: { "User-Agent": UA_HEADER }
-    });
-    const data = res.data?.data;
-    if (!data) throw new Error("Sin datos de Delirius");
-
-    let videoUrl = null;
-    if (data.meta?.media && Array.isArray(data.meta.media)) {
-        const videoMedia = data.meta.media.find(m => m.type === "video");
-        videoUrl = videoMedia?.org || videoMedia?.hd || videoMedia?.wm;
-    }
-    videoUrl = videoUrl || data.url;
-    if (!videoUrl) throw new Error("No se encontró URL de video en Delirius");
-
+async function apiTikwm(url) {
+    const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`, {
+        headers: UA, timeout: 30000, validateStatus: () => true
+    })
+    const d = res.data?.data
+    if (!d || (!d.play && !d.hdplay && !d.wmplay && !(Array.isArray(d.images) && d.images.length))) return null
     return {
-        id: data.id || `tiktok_${Date.now()}`,
-        title: data.title || "",
-        author: data.author?.nickname || data.author?.username || "TikTok User",
-        views: formatNumbers(parseDelimitedNumber(data.repro || 0)),
-        likes: formatNumbers(parseDelimitedNumber(data.like || 0)),
-        videoUrl,
-        duration: normalizeDuration(data.duration || 0)
-    };
+        fuente: 'tikwm',
+        titulo: d.title || '',
+        autor: d.author?.nickname || d.author?.unique_id || '',
+        duracion: d.duration || 0,
+        vistas: d.play_count || d.stats?.playCount || 0,
+        likes: d.digg_count || d.stats?.diggCount || 0,
+        cover: d.cover || d.origin_cover || '',
+        hd: d.hdplay || '',
+        sd: d.play || '',
+        sinMarca: d.wmplay || '',
+        audio: d.music || '',
+        fotos: Array.isArray(d.images) ? d.images : [],
+        esFoto: d.type === 'image' || Array.isArray(d.images) && d.images.length > 0
+    }
 }
 
-async function downloadFaa(url) {
-    const res = await axios.get(`${FAA_URL}faa/tiktok?url=${encodeURIComponent(url)}`, {
-        timeout: 30000,
-        headers: { "User-Agent": UA_HEADER }
-    });
-    const result = res.data?.result;
-    if (!result) throw new Error("Sin resultado de FAA");
-
-    const videoUrl = result.alternatives?.selected || result.data || result.url;
-    if (!videoUrl) throw new Error("No se encontró URL de video en FAA");
-
+async function apiAlyacore(url) {
+    const res = await axios.get(`https://api.alyacore.xyz/dl/tiktok?url=${encodeURIComponent(url)}&key=${ALYACORE_KEY}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 30000, validateStatus: () => true
+    })
+    const d = res.data?.data || res.data?.result
+    if (!res.data?.status || !d?.dl) return null
     return {
-        id: result.id || `tiktok_${Date.now()}`,
-        title: result.title || "",
-        author: result.author?.nickname || result.author?.username || "TikTok User",
-        views: formatNumbers(result.stats?.views || 0),
-        likes: formatNumbers(result.stats?.likes || 0),
-        videoUrl,
-        duration: result.duration ? normalizeDuration(parseInt(String(result.duration).match(/\d+/)?.[0] || 0)) : 0
-    };
+        fuente: 'alyacore',
+        titulo: d.title || '',
+        autor: d.author?.nickname || d.author?.unique_id || '',
+        duracion: d.duration || 0,
+        vistas: d.stats?.playCount || 0,
+        likes: d.stats?.diggCount || 0,
+        cover: d.cover || '',
+        hd: d.dl, sd: d.dl, sinMarca: d.dl,
+        audio: '', fotos: [],
+        esFoto: d.type === 'image'
+    }
 }
 
-async function getDownloadInfo(url) {
-    return firstSuccessful([
-        downloadDelirius(url),
-        downloadFaa(url)
-    ]);
+async function pesoMB(url) {
+    try {
+        const r = await axios.head(url, { timeout: 15000, headers: UA, validateStatus: () => true })
+        return (parseInt(r.headers['content-length']) || 0) / 1048576
+    } catch { return 0 }
 }
 
-// Scrapers de búsqueda
-async function searchDelirius(query) {
-    const res = await axios.get(`${DELIRIUS_URL}search/tiktoksearch?query=${encodeURIComponent(query)}`, {
-        timeout: 20000,
-        headers: { "User-Agent": UA_HEADER }
-    });
-    const videos = res.data?.meta;
-    if (!videos || videos.length === 0) throw new Error("No se encontraron videos");
-    return videos.slice(0, 5).map(video => ({
-        url: video.url,
-        title: video.title || "",
-        author: video.author?.nickname || video.author?.username || "TikTok User",
-        views: formatNumbers(parseDelimitedNumber(video.play || 0)),
-        likes: formatNumbers(parseDelimitedNumber(video.like || 0)),
-        duration: normalizeDuration(video.duration || video.videoDuration || 0)
-    }));
+// extrae audio de un mp4 con ffmpeg (para alyacore, que no trae pista de audio)
+async function extraerAudio(videoUrl, titulo) {
+    const tmp = path.join(process.cwd(), 'tmp')
+    if (!fs.existsSync(tmp)) fs.mkdirSync(tmp, { recursive: true })
+    const entrada = path.join(tmp, `tt_${Date.now()}.mp4`)
+    const salida = path.join(tmp, `tt_${Date.now()}.mp3`)
+    const r = await axios.get(videoUrl, { responseType: 'arraybuffer', timeout: 120000, headers: UA })
+    fs.writeFileSync(entrada, r.data)
+    await new Promise((resolve, reject) => {
+        ffmpeg(entrada).audioCodec('libmp3lame').audioBitrate(128).toFormat('mp3')
+            .on('end', resolve).on('error', reject).save(salida)
+    })
+    const buffer = fs.readFileSync(salida)
+    for (const f of [entrada, salida]) { try { fs.unlinkSync(f) } catch { } }
+    return { buffer, titulo }
 }
 
-async function searchFaa(query) {
-    const res = await axios.get(`${FAA_URL}faa/tiktok-search?q=${encodeURIComponent(query)}`, {
-        timeout: 20000,
-        headers: { "User-Agent": UA_HEADER }
-    });
-    const videos = res.data?.result;
-    if (!videos || videos.length === 0) throw new Error("No se encontraron videos");
-    return videos.slice(0, 5).map(first => {
-        const username = first.author?.username || "";
-        const id = first.id || "";
-        return {
-            url: username && id ? `https://www.tiktok.com/@${username}/video/${id}` : "",
-            title: first.title || "",
-            author: first.author?.nickname || username || "TikTok User",
-            views: formatNumbers(first.stats?.views || 0),
-            likes: formatNumbers(first.stats?.likes || 0),
-            duration: normalizeDuration(first.duration || 0)
-        };
-    }).filter(v => v.url);
-}
+const handler = async (m, { conn, args, usedPrefix, command }) => {
+    args = args.filter(v => v?.trim());
 
-async function searchTikTok(query) {
-    return firstSuccessful([
-        searchDelirius(query),
-        searchFaa(query)
-    ]);
-}
+    const sendExternalMessage = (msgText, options = {}) => m.reply(msgText, options)
 
-export default [
-    {
-        command: ["tt", "tiktok", "ttdl", "tiktokdl", "tiktoks", "ttss"],
-        description: "Descarga un video de TikTok por URL o busca múltiples resultados en formato de álbum.",
-        async execute({ sock, msg, remoteJid, text, usedPrefix, command }) {
-            const tmpFiles = [];
-            try {
-                if (!text) {
-                    return sock.sendMessage(remoteJid, {
-                        text: `⚠️ Por favor ingresa una URL de TikTok o un término de búsqueda.\n\n*Ejemplo:* ${usedPrefix}${command} https://vt.tiktok.com/...\n*Ejemplo:* ${usedPrefix}${command} edits anime`
-                    }, { quoted: msg });
-                }
+    if (!args[0]) {
+        return await sendExternalMessage(`*— (Bostezo)*... ¿Viniste a pedirme algo sin saber qué?\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} https://vt.tiktok.com/ZSmrDCvrS/`);
+    }
 
-                const inputStr = text.trim();
+    const isMode = ["audio", "video"].includes(args[0].toLowerCase());
+    const type = isMode ? (args[0].toLowerCase() === "audio" ? "mp3" : "mp4") : "info";
+    const queryOrUrl = isMode ? args[1] : args[0];
 
-                if (TIKTOK_REGEX.test(inputStr)) {
-                    // Descarga directa por enlace único
-                    await react(sock, remoteJid, msg, "⏳");
-                    const info = await getDownloadInfo(inputStr);
-                    const tmpFile = await downloadToTmp(info.videoUrl, "mp4", "tiktok-dl");
-                    tmpFiles.push(tmpFile);
+    if (isMode && !queryOrUrl) {
+        return await sendExternalMessage(`*— Oye...* si me dices "${args[0].toLowerCase()}" también necesito el enlace.\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} ${args[0].toLowerCase()} https://vt.tiktok.com/ZSmrDCvrS/`);
+    }
 
-                    const durationStr = info.duration ? `${info.duration}s` : "N/A";
-                    const caption = `🎬 *TikTok Download*\n\n` +
-                        `📌 *Título:* ${info.title || "Sin título"}\n` +
-                        `👤 *Autor:* ${info.author}\n` +
-                        `⏱️ *Duración:* ${durationStr}\n` +
-                        `👁️ *Vistas:* ${info.views}\n` +
-                        `❤️ *Likes:* ${info.likes}\n` +
-                        `🔗 *Enlace:* ${inputStr}`;
+    await m.react("🔎");
 
-                    await sock.sendMessage(remoteJid, {
-                        video: { url: tmpFile },
-                        mimetype: "video/mp4",
-                        fileName: `${(info.title || "video").replace(/[<>:"/\\|?*]/g, "").slice(0, 50)}.mp4`,
-                        caption
-                    }, { quoted: msg });
+    try {
+        // cadena: tikwm primero, alyacore de reserva
+        let data = null
+        try { data = await apiTikwm(queryOrUrl) } catch { data = null }
+        if (!data) { try { data = await apiAlyacore(queryOrUrl) } catch { data = null } }
+        if (!data) throw new Error('Ninguna API pudo leer ese TikTok (¿enlace privado o caído?).')
 
-                    await react(sock, remoteJid, msg, "✅");
+        if (isMode) {
+            // audio: pista de tikwm; en alyacore se extrae del video con ffmpeg
+            if (type === 'mp3') {
+                if (data.audio) {
+                    await conn.sendMessage(m.chat, {
+                        audio: { url: data.audio }, mimetype: 'audio/mpeg', fileName: 'tiktok.mp3'
+                    }, { quoted: m });
                 } else {
-                    // Búsqueda de múltiples videos (Álbum multimedia)
-                    await react(sock, remoteJid, msg, "🔍");
-                    const searchResults = await searchTikTok(inputStr);
-
-                    const albumMedia = [];
-                    for (const item of searchResults) {
-                        try {
-                            const info = await getDownloadInfo(item.url);
-                            const tmpFile = await downloadToTmp(info.videoUrl, "mp4", "tiktok-search");
-                            tmpFiles.push(tmpFile);
-
-                            const durationStr = info.duration ? `${info.duration}s` : (item.duration ? `${item.duration}s` : "N/A");
-                            const caption = `🎬 *TikTok Search*\n\n` +
-                                `📌 *Título:* ${info.title || item.title || "Sin título"}\n` +
-                                `👤 *Autor:* ${info.author || item.author}\n` +
-                                `⏱️ *Duración:* ${durationStr}\n` +
-                                `👁️ *Vistas:* ${info.views || item.views}\n` +
-                                `❤️ *Likes:* ${info.likes || item.likes}\n` +
-                                `🔗 *Enlace:* ${item.url}`;
-
-                            albumMedia.push({
-                                video: { url: tmpFile },
-                                mimetype: "video/mp4",
-                                fileName: `${(info.title || item.title || "video").replace(/[<>:"/\\|?*]/g, "").slice(0, 50)}.mp4`,
-                                caption
-                            });
-                        } catch (err) {
-                            console.error(`Error procesando resultado ${item.url}:`, err);
-                        }
-                    }
-
-                    if (albumMedia.length === 0) {
-                        throw new Error("No se pudieron descargar los videos de la búsqueda.");
-                    }
-
-                    if (albumMedia.length === 1) {
-                        await sock.sendMessage(remoteJid, albumMedia[0], { quoted: msg });
-                    } else {
-                        await sendAlbumMessage(sock, remoteJid, albumMedia, msg);
-                    }
-
-                    await react(sock, remoteJid, msg, "✅");
+                    const { buffer, titulo } = await extraerAudio(data.sd || data.hd, data.titulo)
+                    await conn.sendMessage(m.chat, {
+                        audio: buffer, mimetype: 'audio/mpeg', fileName: `${(titulo || 'tiktok').slice(0, 40)}.mp3`
+                    }, { quoted: m });
                 }
-            } catch (e) {
-                await react(sock, remoteJid, msg, "❌");
-                await sock.sendMessage(remoteJid, {
-                    text: `❌ Error: ${e.message || "Ocurrió un error inesperado."}`
-                }, { quoted: msg });
-            } finally {
-                cleanTmp(...tmpFiles);
+            } else if (data.fotos.length) {
+                // publicación de fotos
+                for (const foto of data.fotos.slice(0, 10)) {
+                    await conn.sendFile(m.chat, foto, 'tiktok.jpg', `ꕤ ${data.titulo || 'Aquí tienes'}`, m)
+                }
+            } else {
+                // video: si el HD pasa de 100MB se baja al SD y se envía igual, nunca documento
+                let url = data.hd || data.sd || data.sinMarca
+                const pesoHD = await pesoMB(url)
+                if (pesoHD > SIZE_LIMIT_MB && data.sd && data.sd !== url) {
+                    const pesoSD = await pesoMB(data.sd)
+                    if (!pesoSD || pesoSD < pesoHD) url = data.sd
+                }
+                const caption = `🎬 *Aquí tienes.*\n\n> *Título:* ${data.titulo}`;
+                await conn.sendMessage(m.chat, { video: { url }, caption, mimetype: 'video/mp4' }, { quoted: m });
             }
-        },
+            await m.react("✅");
+
+        } else {
+            const vistasStr = (data.vistas !== undefined && data.vistas !== null) ? data.vistas.toLocaleString() : '0';
+
+            const caption = `₊‧꒰ 🦈 ꒱ 𝙏𝙄𝙆𝙏𝙊𝙆 𝙄𝙉𝙁𝙊\n\n> *Autor:* ${data.autor || 'Desconocido'}\n> *Título:* ${data.titulo || 'Sin título'}\n> *Duración:* ${data.duracion || '---'}\n> *Vistas:* ${vistasStr}\n\n*— Elige si quieres audio o video.*`;
+
+            const buttons = [
+                { buttonId: `${usedPrefix}${command} video ${queryOrUrl}`, buttonText: { displayText: '🎬 𝙑𝙄𝘿𝙀𝙊' }, type: 1 },
+                { buttonId: `${usedPrefix}${command} audio ${queryOrUrl}`, buttonText: { displayText: '🎧 𝘼𝙐𝘿𝙄𝙊' }, type: 1 }
+            ];
+
+            await conn.sendMessage(m.chat, {
+                image: data.cover ? { url: data.cover } : global.icono,
+                caption: caption + `\n\n> Escribe *${usedPrefix}${command} video <url>* o *${usedPrefix}${command} audio <url>* para descargar.`,
+                footer: 'Victoria Housekeeping Service',
+                buttons,
+                headerType: 4,
+                contextInfo: {
+                    mentionedJid: [m.sender],
+                    isForwarded: true,
+                    forwardedNewsletterMessageInfo: {
+                        newsletterJid,
+                        newsletterName,
+                        serverMessageId: -1
+                    }
+                }
+            }, { quoted: m });
+        }
+
+    } catch (e) {
+        console.error(e);
+        await m.react("❌");
+        await sendExternalMessage(`*— Tsk...* Falló el servicio: ${e.message}`);
     }
-];
+};
+
+handler.help = ['tiktok <URL>'];
+handler.tags = ['descargas'];
+handler.command = ['tiktok', 'tt'];
+handler.register = true;
+
+export default handler;

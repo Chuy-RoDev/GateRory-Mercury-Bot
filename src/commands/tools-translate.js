@@ -1,7 +1,9 @@
 import translate from '@vitalets/google-translate-api'
 import fetch from 'node-fetch'
 
-const handler = async (m, { args, usedPrefix, command }) => {
+// FIX: el handler usaba conn.reply sin recibir conn del framework — el comando
+// entero crasheaba con "conn is not defined" SIEMPRE, incluso en el camino feliz.
+const handler = async (m, { conn, args, usedPrefix, command }) => {
 const defaultLang = 'es'
 const msg = `ꕤ Por favor, ingresé el (idioma) (texto) para traducirlo.`  
 if (!args || !args[0]) {
@@ -22,15 +24,15 @@ const result = await translate(`${text}`, { to: lang, autoCorrect: true })
 await conn.reply(m.chat, result.text, m)
 await m.react('✔️')
 } catch (error) {
-await m.react('✖️')
-await m.reply(`⚠︎ Se ha producido un problema.\n> Usa *${usedPrefix}report* para informarlo.\n\n${error.message}`, m)
+// reserva: traducción vía IA gratuita (reemplaza lolhuman, que exigía una
+// apikey que nunca estaba definida — ese fallback crasheaba siempre)
 try {
 await m.react('🕒')
-conn.reply(m.chat, wait, m)
-const lol = await fetch(`https://api.lolhuman.xyz/api/translate/auto/${lang}?apikey=${lolkeysapi}&text=${text}`)
-const loll = await lol.json()
-const result2 = loll.result.translated
-await conn.reply(m.chat, result2, m)
+const prompt = `Traduce el siguiente texto al idioma "${lang}". Responde ÚNICAMENTE con la traducción, sin comillas ni explicaciones:\n\n${text}`
+const r = await fetch('https://text.pollinations.ai/' + encodeURIComponent(prompt), { signal: AbortSignal.timeout(45000) })
+const trad = (await r.text()).trim()
+if (!trad) throw new Error('traducción vacía')
+await conn.reply(m.chat, trad, m)
 await m.react('✔️')
 } catch (error) {
 await m.react('✖️')

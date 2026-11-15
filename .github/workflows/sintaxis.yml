@@ -1,0 +1,38 @@
+name: Verificación de sintaxis
+
+# Robot de GitHub: en cada push (y cada PR) revisa que ningún .js del bot
+# llegue roto de sintaxis. NO ejecuta el bot, NO modifica nada del código:
+# solo corre `node --check` (validador oficial de Node.js) sobre cada archivo.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sintaxis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Revisar sintaxis de todos los .js
+        run: |
+          fallo=0
+          while IFS= read -r -d '' f; do
+            if ! node --check "$f" 2> "$f.err"; then
+              echo "::error file=$f::Sintaxis inválida"
+              cat "$f.err"
+              fallo=1
+            fi
+            rm -f "$f.err"
+          done < <(git ls-files -z '*.js' ':!node_modules' ':!node_modules/**')
+          if [ "$fallo" -ne 0 ]; then
+            echo "✗ Hay archivos con errores de sintaxis."
+            exit 1
+          fi
+          echo "✓ Todos los archivos .js tienen sintaxis válida."

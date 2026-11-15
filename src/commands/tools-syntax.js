@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-var handler = async (m, { usedPrefix, command }) => {
+var handler = async (m, { conn, usedPrefix, command }) => {
     try {
         conn.sendPresenceUpdate('composing', m.chat)
 

@@ -77,7 +77,13 @@ const receptor = Array.isArray(global.suittag)
 
             case 'speedtest':
             case 'stest': {
-                const o = await exec('python3 ./lib/ookla-speedtest.py --secure --share')
+                // FIX: sin timeout, si python3/ookla no responde (Termux sin python3,
+                // red lenta, script colgado) el comando quedaba eternamente esperando y
+                // el usuario sin respuesta. Ahora corta a los 90s con aviso claro.
+                const o = await Promise.race([
+                    exec('python3 ./lib/ookla-speedtest.py --secure --share'),
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('El speedtest tardó demasiado (90s) y fue cancelado. Revisa que python3 y el script ookla estén instalados.')), 90000))
+                ])
                 const result = o.stdout.trim() || o.stderr.trim()
                 const url = result.match(/http[^"]+\.png/)?.[0]
                 

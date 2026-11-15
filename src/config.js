@@ -52,6 +52,14 @@ global.jadi = "Sessions/SubBot"
 global.RoryMercurybot = true
 
 // ─────────────────────────────
+//  CONFIG DESCARGAS (fb/ig)
+// ─────────────────────────────
+// api.cobalt.tools ahora exige API key. Si consigues una (o self-hosteas cobalt
+// con docker), ponla aquí y el comando .fb/.ig la usará como último fallback.
+global.COBALT_API_KEY = ""
+global.COBALT_API_URL = "" // ej. "http://127.0.0.1:9000/" si lo self-hosteas
+
+// ─────────────────────────────
 //  CONFIG INFORMACIÓN DEL BOT
 // ─────────────────────────────
 global.botname = "Rory Mercury"
@@ -71,6 +79,11 @@ global.banner = fs.readFileSync('./src/assets/banner.jpg')
 global.icono = fs.readFileSync('./src/assets/menu.jpg')
 global.catalogo = fs.readFileSync('./src/assets/menu.jpg')
 global.logo = fs.readFileSync('./src/RoryMercury.jpg')
+
+// FIX: packsticker/packsticker2 se usaban en tools-sticker y downloads-pinterest pero
+// nunca estaban definidos → stickers sin marca de agua. Definidos con la identidad del bot.
+global.packsticker = global.botname || "Rory Mercury"
+global.packsticker2 = global.etiqueta || "© made by Arlette Xz"
 
 // ─────────────────────────────
 //  CONFIG WELCOME
@@ -160,6 +173,28 @@ global.opts = {
 // ─────────────────────────────
 global.getUserCurrency = (chatId) => {
     return global.db.data?.chats?.[chatId]?.currency || global.currency
+}
+
+// ─────────────────────────────
+//  ANTIBAN — PROTECCIÓN ANTI-DETECCIÓN / ANTI-BAN
+// ─────────────────────────────
+// lib/antiban.js lee esto al arrancar. Puedes tunear sin tocar código:
+//  · enabled: false      → apaga toda la capa (no recomendado)
+//  · cooldownLowMs       → cooldown normal entre comandos del mismo usuario (siempre bajo)
+//  · cooldownMs          → cooldown al saturar (5+ comandos/min por usuario)
+//  · maxPerMinute        → tope de comandos por minuto por usuario antes de castigo
+//  · outboxMin/MaxMs     → espaciado de envíos en normal (~100ms)
+//  · outboxSatMin/MaxMs  → espaciado de envíos en saturación (peak 350-900ms)
+global.antibanCfg = {
+    enabled: true,
+    cooldownLowMs: 400,
+    cooldownMs: 2500,
+    escalateHits: 5,
+    maxPerMinute: 8,
+    outboxMinMs: 80,
+    outboxMaxMs: 130,
+    outboxSatMinMs: 350,
+    outboxSatMaxMs: 900,
 }
 
 // ─────────────────────────────

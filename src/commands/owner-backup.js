@@ -41,27 +41,30 @@ delete global.db.data.users[who]
 conn.sendMessage(m.chat, { text: `ꕤ Éxito. Todos los datos del usuario @${userNumber} fueron eliminados.`, mentions: [who] }, { quoted: m })
 break
 }
-case 'jadibot': case 'serbot': {
+case 'jadibotmd': {
+// FIX: este bloque usaba una variable "bot" que no existía en ningún lado
+// (ReferenceError SIEMPRE) y con los aliases jadibot/serbot le robaba el
+// comando al serbot real (sockets-serbot.js). Ahora el toggle vive bajo
+// /jadibotmd y escribe donde sockets-serbot.js:284 lee: settings[botJid].jadibotmd
 const value = text ? text.trim().toLowerCase() : ''
-const type = /jadibot|serbot/.test(command) ? 'jadibotmd' : null
-if (!type) return m.reply(`ꕤ Modo no reconocido.`)
-const isEnable = bot[type] || false
+const settings = global.db.data.settings[conn.user.jid] || (global.db.data.settings[conn.user.jid] = {})
+const isEnable = settings.jadibotmd ?? true
 const enable = value === 'enable' || value === 'on'
 const disable = value === 'disable' || value === 'off'
 if (enable || disable) {
-if (isEnable === enable) return m.reply(`ꕤ El modo *${type}* ya estaba ${enable ? 'activado' : 'desactivado'}.`)
-bot[type] = enable
-return conn.reply(m.chat, `ꕤ Has *${enable ? 'activado' : 'desactivado'}* el modo *${type}* para el Socket.`, m)
+if (isEnable === enable) return m.reply(`ꕤ El modo *jadibotmd* ya estaba ${enable ? 'activado' : 'desactivado'}.`)
+settings.jadibotmd = enable
+return conn.reply(m.chat, `ꕤ Has *${enable ? 'activado' : 'desactivado'}* el modo *jadibotmd* (permitir que usen /jadibot).`, m)
 }
-conn.reply(m.chat, `「✦」Puedes activar o desactivar el modo *${type}* utilizando:\n\n● Activar » ${usedPrefix}${command} enable\n● Desactivar » ${usedPrefix}${command} disable\n\nꕤ Estado actual » *${isEnable ? '✓ Activado' : '✗ Desactivado'}*`, m)
+conn.reply(m.chat, `「✦」Puedes activar o desactivar el modo *jadibotmd* utilizando:\n\n● Activar » ${usedPrefix}jadibotmd enable\n● Desactivar » ${usedPrefix}jadibotmd disable\n\nꕤ Estado actual » *${isEnable ? '✓ Activado' : '✗ Desactivado'}*`, m)
 break
 }}} catch (e) {
 await m.react('✖️')
 conn.reply(m.chat, `⚠︎ Se ha producido un problema.\n> Usa *${usedPrefix}report* para informarlo.\n\n${e.message}`, m)
 }}
 
-handler.help = ['backup', 'copia', 'resetuser', 'resetear']
+handler.help = ['backup', 'copia', 'resetuser', 'resetear', 'jadibotmd']
 handler.tags = ['owner']
-handler.command = ['backup', 'copia', 'resetuser', 'resetear', 'jadibot', 'serbot']
+handler.command = ['backup', 'copia', 'resetuser', 'resetear', 'jadibotmd']
 
 export default handler

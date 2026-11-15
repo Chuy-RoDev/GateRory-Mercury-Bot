@@ -11,37 +11,26 @@ const GITHUB_HARDCODED_REPO = process.env.GITHUB_REPO || 'WillZek/Storage-CB2'
 
 // --- FUNCIONES DE SUBIDA DE ARCHIVOS ---
 
-async function russellCDN(buffer) {
+// dix.lat (rápido, método de Luffy) con qu.ax de reserva.
+// Russell CDN y Telegraph están muertos (origin 523 / uploads descontinuados).
+async function dixCDN(buffer) {
     const { ext, mime } = await fileTypeFromBuffer(buffer) || { ext: 'jpg', mime: 'image/jpeg' }
     const blob = new Blob([buffer], { type: mime })
     const formData = new FormData()
-    const filename = `${crypto.randomBytes(8).toString('hex')}.${ext}`
-    
-    formData.append('file', blob, filename)
-    
-    const res = await fetch('https://cdn.russellxz.click/api/upload', {
-        method: 'POST',
-        body: formData
-    })
-    
+    formData.append('file', blob, `${Date.now()}.${ext}`)
+    const res = await fetch('https://cdn.dix.lat/upload', { method: 'POST', body: formData })
     const data = await res.json()
-    return data.url || data.link || data.direct_url || `https://cdn.russellxz.click/${filename}`
+    if (data?.data?.url) return data.data.url
+    // reserva: qu.ax
+    const f2 = new FormData()
+    f2.append('file', new Blob([buffer], { type: mime }), `${Date.now()}.${ext}`)
+    const r2 = await fetch('https://qu.ax/upload.php', { method: 'POST', body: f2 })
+    const d2 = await r2.json().catch(() => null)
+    return d2?.success ? (d2.files?.[0]?.url || d2.url || null) : null
 }
 
-async function telegraPh(buffer) {
-    const { ext } = await fileTypeFromBuffer(buffer) || { ext: 'jpg' }
-    const blob = new Blob([buffer], { type: `image/${ext}` })
-    const formData = new FormData()
-    formData.append('file', blob, `file.${ext}`)
-    
-    const res = await fetch('https://telegra.ph/upload', {
-        method: 'POST',
-        body: formData
-    })
-    
-    const data = await res.json()
-    return data[0]?.src ? `https://telegra.ph${data[0].src}` : null
-}
+// Telegraph descontinuado (ya no acepta subidas): su función se eliminó.
+// El comando .tg/.telegraph ahora usa dixCDN.
 
 async function catbox(buffer) {
     const { ext } = await fileTypeFromBuffer(buffer) || { ext: 'jpg' }
@@ -158,16 +147,17 @@ const handler = async (m, { conn, command }) => {
         switch(command) {
             case 'tourl': {
                 const link = await Promise.race([
-                    russellCDN(media).catch(() => null),
-                    telegraPh(media).catch(() => null),
-                    catbox(media).catch(() => null)
+                    dixCDN(media).catch(() => null),
+                    catbox(media).catch(() => null),
+                    uploadLitterbox(media, ext, realMime).catch(() => null)
                 ])
-                
+
                 if (!link) throw new Error('Todas las APIs fallaron')
-                
-                const platform = link.includes('russellxz.click') ? 'Russell CDN' : 
-                               link.includes('telegra.ph') ? 'Telegraph' : 
-                               link.includes('catbox') ? 'Catbox' : 'Server'
+
+                const platform = link.includes('dix.lat') ? 'dix CDN' :
+                               link.includes('qu.ax') ? 'qu.ax' :
+                               link.includes('catbox') ? 'Catbox' :
+                               link.includes('litterbox') || link.includes('alvianuxio') ? 'Litterbox' : 'Server'
                 
                 const msg = `ꕤ *Enlace Generado*
 
@@ -196,9 +186,10 @@ const handler = async (m, { conn, command }) => {
                 break
             }
             
-            case 'russell': {
-                const link = await russellCDN(media)
-                const msg = `ꕤ *Russell CDN*
+            case 'russell':
+            case 'cdn': {
+                const link = await dixCDN(media)
+                const msg = `ꕤ *dix CDN*
 
 • URL: ${link}
 • Tamaño: ${size}
@@ -211,11 +202,12 @@ const handler = async (m, { conn, command }) => {
                 break
             }
             
-            case 'telegraph': 
-            case 'telegra': 
+            case 'telegraph':
+            case 'telegra':
             case 'tg': {
-                const link = await telegraPh(media)
-                const msg = `ꕤ *Telegraph Upload*
+                // Telegraph ya no acepta subidas: se usa dix CDN
+                const link = await dixCDN(media)
+                const msg = `ꕤ *dix CDN Upload*
 
 • URL: ${link}
 • Tamaño: ${size}
@@ -298,24 +290,24 @@ const handler = async (m, { conn, command }) => {
             case 'upload': 
             case 'uploadall': { // Comando multi-subida unificado
                 const results = await Promise.allSettled([
-                    russellCDN(media).catch(() => null),
-                    telegraPh(media).catch(() => null),
+                    dixCDN(media).catch(() => null),
                     catbox(media).catch(() => null),
                     uploadImage(media).catch(() => null), // Mantenemos esta si está definida
                     uploadPostImages(media, ext, realMime).catch(() => null),
                     uploadLitterbox(media, ext, realMime).catch(() => null),
-                    uploadTmpFiles(media, ext, realMime).catch(() => null)
+                    uploadTmpFiles(media, ext, realMime).catch(() => null),
+                    uploadFreeImageHost(media, ext, realMime).catch(() => null)
                 ])
-                
+
                 const links = results.filter(r => r.status === 'fulfilled' && r.value).map(r => r.value)
-                
+
                 if (!links.length) throw new Error('Todas las APIs fallaron')
-                
+
                 const msg = `ꕤ *Multi Upload*\n\n${links.map((link, i) => {
                     let platform = 'Server'
                     let expiration = 'Nunca'
-                    if (link.includes('russellxz.click')) platform = 'Russell CDN'
-                    else if (link.includes('telegra.ph')) platform = 'Telegraph'
+                    if (link.includes('dix.lat')) platform = 'dix CDN'
+                    else if (link.includes('qu.ax')) platform = 'qu.ax'
                     else if (link.includes('catbox')) platform = 'Catbox'
                     else if (link.includes('postimages')) platform = 'PostImages'
                     else if (link.includes('alvianuxio.eu.org/uploader/litterbox')) { platform = 'Litterbox'; expiration = '24 Horas' }

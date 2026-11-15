@@ -266,8 +266,9 @@ var handler = async (m, { conn, usedPrefix, command, args, text }) => {
     let foto = 'https://telegra.ph/file/0db4473e655e88417c244.jpg' 
     
     try {
-        let res = await axios.get(`https://rest.apicausas.xyz/api/v1/buscadores/pinterest?q=${encodeURIComponent(elegido.nombre + ' anime icon aesthetic')}&apikey=${CAUSA_API_KEY}`)
-        if (res.data.data.length > 0) foto = res.data.data[Math.floor(Math.random() * res.data.data.length)].image
+        let res = await axios.get(`https://api.alyacore.xyz/search/pinterest?query=${encodeURIComponent(elegido.nombre + ' anime icon aesthetic')}&key=LUFFY-FIX67`, { timeout: 20000, headers: { 'User-Agent': 'Mozilla/5.0' }, validateStatus: () => true })
+        const imgs = (res.data?.data || []).map(x => x.hd || x.mini).filter(Boolean)
+        if (imgs.length > 0) foto = imgs[Math.floor(Math.random() * imgs.length)]
     } catch (e) { }
 
     conn.adivinar[id] = {

@@ -21,7 +21,16 @@ ${usedPrefix + command} 1 h ---> 1 hora premium.
 ${usedPrefix + command} 2 d ---> 2 días premium.
 ${usedPrefix + command} 1 s ---> 1 semana premium.
 ${usedPrefix + command} 1 m ---> 1 mes premium.`
-if (!args[0]) return conn.reply(m.chat, texto, fkontak)
+if (!args[0]) {
+    // FIX: fkontak era una global frágil (solo existía si el hook all de main-allfake.js
+    // había corrido antes). Ahora hay fallback local con el mismo formato de contacto.
+    const fk = global.fkontak || {
+        key: { participants: "0@s.whatsapp.net", remoteJid: "status@broadcast", fromMe: false, id: "Halo" },
+        message: { contactMessage: { vcard: `BEGIN:VCARD\nVERSION:3.0\nN:Sy;Bot;;;\nFN:Rory\nitem1.TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}\nitem1.X-ABLabel:Ponsel\nEND:VCARD` } },
+        participant: "0@s.whatsapp.net"
+    }
+    return conn.reply(m.chat, texto, fk)
+}
 let user = global.db.data.users[m.sender]
 let name = await (async () => global.db.data.users[m.sender].name || (async () => { try { const n = await conn.getName(m.sender); return typeof n === 'string' && n.trim() ? n : m.sender.split('@')[0] } catch { return m.sender.split('@')[0] } })())()
 if (isNaN(args[0])) return conn.reply(m.chat, `ꕤ Solo se aceptan números.\n> Ejemplo: *${usedPrefix + command} 1 h*`, m)
@@ -49,7 +58,7 @@ let cap = `  \`\`\`乂 ¡BUY  -  PREMIUM! 乂\`\`\`
 ⛁ ${currency} » ${user.coin}
 ✰ Tenía » ${user.coin + total}
 ✧ Comisión » -${comision * args[0]} (incluida)`
-conn.sendMessage(m.chat, { text: cap, mentions: [m.sender] }, { quoted: fkontak })
+conn.sendMessage(m.chat, { text: cap, mentions: [m.sender] }, { quoted: global.fkontak || { key: { participants: "0@s.whatsapp.net", remoteJid: "status@broadcast", fromMe: false, id: "Halo" }, message: { contactMessage: { vcard: `BEGIN:VCARD\nVERSION:3.0\nN:Sy;Bot;;;\nFN:Rory\nitem1.TEL;waid=${m.sender.split('@')[0]}:${m.sender.split('@')[0]}\nitem1.X-ABLabel:Ponsel\nEND:VCARD` } }, participant: "0@s.whatsapp.net" } })
 }
 
 handler.tags = ['rg']
