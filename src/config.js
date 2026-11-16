@@ -3,6 +3,7 @@ import chalk from "chalk"
 import { fileURLToPath } from "url"
 import fs from "fs"
 import moment from "moment-timezone"
+import { aplicar as aplicarPersonalidad } from "../lib/personalidad.js"
 
 // ─────────────────────────────
 //  SISTEMA DE FECHA Y HORA
@@ -154,6 +155,10 @@ global.msg = {
     mensaje: "ꕤ *Usuario baneado*\n\n» Razón: ${bannedReason}",
     intocable: "⚠️ **¡ALTO AHÍ!** No eres el/la novi@. Aléjate de/la patron/a o te aniquilo."
 }
+
+// Personalidad (Rory Mercury ↔ genérico): pisa global.msg con el pack activo.
+// try/catch: un json corrupto nunca debe impedir el arranque del bot.
+try { aplicarPersonalidad() } catch (e) { console.error('personalidad:', e) }
 
 // ─────────────────────────────
 //  CONFIGURACIÓN DE OPCIONES GLOBALES

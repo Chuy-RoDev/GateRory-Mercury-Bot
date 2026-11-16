@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { getModo, fraseReaccion } from '../../lib/personalidad.js'
 
 const nsfwData = JSON.parse(readFileSync(join(process.cwd(), 'src/json', 'nsfw.json')))
 
@@ -151,6 +152,10 @@ let handler = async (m, { conn, command, usedPrefix }) => {
         ? messages.solo 
         : (m.quoted ? messages.quoted : messages.mentioned)
 
+    // Sabor Rory: una frase suya arriba del caption (solo en modo rory)
+    let caption = String(str)
+    if (getModo() === 'rory') caption = `${fraseReaccion()}\n\n${caption}`
+
     if (reactEmoji) await m.react(reactEmoji)
     
     if (m.isGroup) {
@@ -162,7 +167,7 @@ let handler = async (m, { conn, command, usedPrefix }) => {
             await conn.sendMessage(m.chat, { 
                 video: { url: video }, 
                 gifPlayback: true, 
-                caption: String(str), 
+                caption, 
                 mentions 
             }, { quoted: m })
             
