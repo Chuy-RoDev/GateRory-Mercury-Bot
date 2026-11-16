@@ -1,5 +1,4 @@
 import fs from 'fs'
-import { saludoMenu } from '../../lib/personalidad.js'
 
 let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
   try {
@@ -32,7 +31,8 @@ let handler = async (m, { conn, usedPrefix: _p, args, sender }) => {
     }
 
     const menuHeader = `
-${saludoMenu(username, botnameLocal)}
+「🖤」 ¡Hola! *${username}*, Soy *${botnameLocal}*
+> Aquí tienes la lista de comandos.
 
 ╭┈ ↷
 │❀ 𝗠𝗼𝗱𝗼 » Público
