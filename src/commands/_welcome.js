@@ -16,7 +16,7 @@ async function generarBienvenida({ conn, userId, groupMetadata, chat }) {
     try {
         const profilePic = await conn.profilePictureUrl(userId, 'image').catch(() => null)
         if (profilePic) {
-            const response = await fetch(profilePic)
+            const response = await fetch(profilePic, { signal: AbortSignal.timeout(30000) })
             imageBuffer = Buffer.from(await response.arrayBuffer())
         } else {
             imageBuffer = global.welcomeConfig?.defaultAvatar
@@ -43,7 +43,7 @@ async function generarDespedida({ conn, userId, groupMetadata, chat }) {
     try {
         const profilePic = await conn.profilePictureUrl(userId, 'image').catch(() => null)
         if (profilePic) {
-            const response = await fetch(profilePic)
+            const response = await fetch(profilePic, { signal: AbortSignal.timeout(30000) })
             imageBuffer = Buffer.from(await response.arrayBuffer())
         } else {
             imageBuffer = global.welcomeConfig?.defaultAvatar

@@ -18,13 +18,13 @@ async function dixCDN(buffer) {
     const blob = new Blob([buffer], { type: mime })
     const formData = new FormData()
     formData.append('file', blob, `${Date.now()}.${ext}`)
-    const res = await fetch('https://cdn.dix.lat/upload', { method: 'POST', body: formData })
+    const res = await fetch('https://cdn.dix.lat/upload', { method: 'POST', body: formData, signal: AbortSignal.timeout(60000) })
     const data = await res.json()
     if (data?.data?.url) return data.data.url
     // reserva: qu.ax
     const f2 = new FormData()
     f2.append('file', new Blob([buffer], { type: mime }), `${Date.now()}.${ext}`)
-    const r2 = await fetch('https://qu.ax/upload.php', { method: 'POST', body: f2 })
+    const r2 = await fetch('https://qu.ax/upload.php', { method: 'POST', body: f2, signal: AbortSignal.timeout(60000) })
     const d2 = await r2.json().catch(() => null)
     return d2?.success ? (d2.files?.[0]?.url || d2.url || null) : null
 }
@@ -43,7 +43,8 @@ async function catbox(buffer) {
     
     const res = await fetch('https://catbox.moe/user/api.php', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal: AbortSignal.timeout(60000)
     })
     
     return (await res.text()).trim()
@@ -60,6 +61,7 @@ async function uploadGitHub(buffer, ext) {
     const content = Buffer.from(buffer).toString('base64')
     
     const res = await fetch(`https://api.github.com/repos/${repo}/contents/${path}`, {
+        signal: AbortSignal.timeout(30000),
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'upload-bot' },
         body: JSON.stringify({ message: `upload ${filename}`, content: content })
@@ -77,7 +79,7 @@ async function uploadPostImages(buffer, ext, mime) {
     form.append('numfiles', '1')
     form.append('upload_session', String(Math.random()))
     form.append('file', new Blob([buffer], { type: mime || 'image/jpeg' }), `${Date.now()}.${ext || 'jpg'}`)
-    const res = await fetch('https://postimages.org/json/rr', { method: 'POST', body: form })
+    const res = await fetch('https://postimages.org/json/rr', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) })
     const json = await res.json().catch(async () => ({ raw: await res.text() }))
     return json?.url || json?.images?.[0]?.url || null
 }
@@ -87,7 +89,7 @@ async function uploadLitterbox(buffer, ext, mime) {
     const form = new FormData()
     form.append('file', new Blob([buffer], { type: mime || 'application/octet-stream' }), `upload.${ext || 'bin'}`)
     form.append('time', '24h')
-    const res = await fetch('https://api.alvianuxio.eu.org/uploader/litterbox', { method: 'POST', body: form })
+    const res = await fetch('https://api.alvianuxio.eu.org/uploader/litterbox', { method: 'POST', body: form, signal: AbortSignal.timeout(60000) })
     const text = await res.text()
     try { 
         const j = JSON.parse(text); 

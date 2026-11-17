@@ -150,6 +150,31 @@
 
 ---
 
+## ✦ Comandos destacados
+
+### 🔞 `/r34` — Rule34 con flujo completo
+
+| Cómo lo llamas | Qué hace |
+|---|---|
+| `/r34 (tag)` | **Directo en mixto**: hasta 25 imágenes + 25 vídeos en un álbum |
+| `/r34 (tag) video 50` | **Directo solo vídeos** (máx. 50, sin número usa 25) |
+| `/r34 (tag) mix 10` | Mixto con cantidad personalizada (máx. 25 de cada) |
+| `/r34vid (tag)` · `/rulevid (tag)` | Igual que `video` directo |
+| `/r34 (tag) imagen` o `/r34 (tag) menu` | **Pasos con menú** (única forma de pedir solo imágenes) |
+
+Los **pasos** son: te muestra cuántos posts tiene el tag → *"Este tag ya existe, ¿es correcto?"* (respondes **Si/No**) → menú de formato (`videos`, `imagenes`, `mixto`, o cantidad como `videos 20`) — si respondes **No**, te lista tags parecidos numerados y eliges por número. Si el tag no existe, la lista de parecidos sale de una vez. Topes: vídeos 50, imágenes 50, mixto 25 de cada. `cancelar` aborta la sesión (dura 5 min). El `/r34` tiene cooldown de **45 s por chat** (owners/premium libres) para proteger la sesión de WhatsApp.
+
+### 🎨 Otras mejoras recientes
+
+- **`/personalidad rory|generico`** — cambia la voz del bot (mensajes de errores, menús) entre Rory Mercury y bot genérico.
+- **`/s` · `/sticker` · `/stiker`** unificados: acepta imagen, vídeo (≤15 s), sticker (re-marca sin re-encodar) y **URLs**; marca personalizada con `pack • autor`; si ffmpeg falla, usa servidores web de respaldo.
+- **`/update` · `/fix` · `/actualizar` · `/up`** unificados: `git stash` + `pull` + reinicio automático de pm2, con reporte de archivos cambiados y detección de conflictos locales.
+- **Anti-spam por comando**: comandos pesados tienen cooldown por chat configurable en `lib/cooldown.js`.
+- **Errores visibles**: si un plugin falla, verás `[PLUGIN-ERROR] hora · archivo · mensaje` en consola, se guarda en `tmp/plugin-errors.log` y se avisa al owner por WhatsApp.
+- **`.env` opcional** (ver Configuración): owners y API keys fuera del código si lo deseas.
+
+---
+
 ## 🛡️ Protección antiban (integrada)
 
 El bot trae una capa que trabaja sola para **parecer más humano y evitar el baneo**:
@@ -309,6 +334,20 @@ Edita `src/config.js`:
 | `global.modes.antilink` | Antilink activado por defecto | `false` |
 
 > El bot acepta **tres prefijos**: `:`, `💙` y `/` — ejemplos: `:menu`, `💙menu`, `/menu`.
+
+### 🔐 Opcional: archivo `.env` (valores fuera del código)
+
+Copia `.env.example` a `.env` (está en `.gitignore`, nunca se sube a GitHub) y define:
+
+| Variable | Sustituye a | Ejemplo |
+|---|---|---|
+| `OWNER_NUMBERS` | Los números de `global.owner` | `57...,57...` (separados por coma) |
+| `R34_API_KEY` | La API key de Rule34 (`lib/r34flow.js`) | el token hex |
+| `R34_USER_ID` | El user_id de Rule34 | `12345` |
+
+Si no existe `.env`, el bot usa los valores del código y funciona **idéntico** — el `.env` solo sobreescribe.
+
+> 🗂️ Los scripts de mantenimiento que no son parte del bot (`dedup.js`, `populate.js`, parches antiguos) viven en **`extras/`** — ver `extras/README.md`.
 
 ---
 

@@ -79,7 +79,7 @@ const commandAliases = {
 
 const getVideo = async (category) => {
   try {
-    const res = await fetch(`https://api.alyacore.xyz/sfw/interaction?inter=${category}&key=LUFFY-FIX67`)
+    const res = await fetch(`https://api.alyacore.xyz/sfw/interaction?inter=${category}&key=LUFFY-FIX67`, { signal: AbortSignal.timeout(30000) })
     if (res.ok) {
       const json = await res.json()
       if (json.status && json.result) return json.result
@@ -87,7 +87,7 @@ const getVideo = async (category) => {
   } catch {}
 
   try {
-    const res = await fetch(`https://nekos.best/api/v2/${category}`)
+    const res = await fetch(`https://nekos.best/api/v2/${category}`, { signal: AbortSignal.timeout(30000) })
     if (res.ok) {
       const json = await res.json()
       if (json.results?.[0]?.url) return json.results[0].url

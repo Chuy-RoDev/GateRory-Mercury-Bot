@@ -1,4 +1,6 @@
 import { smsg } from "../lib/simple.js"
+import { checkCooldown } from "../lib/cooldown.js"
+import { logPluginError } from "../lib/pluginlog.js"
 import { format } from "util"
 import { fileURLToPath } from "url"
 import path, { join } from "path"
@@ -241,7 +243,7 @@ export async function handler(chatUpdate) {
             if (!plugin || plugin.disabled) continue
 
             if (typeof plugin.all === "function") {
-                await plugin.all.call(this, m, { chatUpdate, user, chat, settings }).catch(() => null)
+                await plugin.all.call(this, m, { chatUpdate, user, chat, settings }).catch(e => logPluginError(name + ' (all)', e, this))
                 // ANTIBAN: delay fijo → jitter aleatorio (un ritmo idéntico en cada
                 // mensaje es huella de automatización)
                 await delay(120 + Math.random() * 280)
@@ -355,6 +357,14 @@ export async function handler(chatUpdate) {
                     return
                 }
             }
+            // ── COOLDOWN por comando+chat (lib/cooldown.js): comandos pesados
+            // (r34 y familia) no se pueden repetir en el mismo chat antes de X
+            // segundos. Owners y premium pasan; tiempos configurables en el mapa. ──
+            const cd = checkCooldown(command, m.chat, { isROwner, isOwner, isPrems })
+            if (!cd.ok) {
+                return m.reply(`ꕤ Frenita~ *${usedPrefix}${command}* se usó hace ratito en este chat.\n> Espera *${cd.restan}s* para volver a usarlo.`)
+            }
+
             // FIX: se añadieron sender y quoted, que varios plugins esperan recibir
             // (ej: main-menu usa sender y crasheaba si el mensaje no traía pushName).
             const extra = { match, usedPrefix, noPrefix, args, command, text: args.join(" "), conn: this, sender: m.sender, quoted: m.quoted || null, participants, groupMetadata, userGroup, botGroup, isROwner, isOwner, isRAdmin, isAdmin, isBotAdmin, isPrems, chatUpdate, user, chat, settings }
@@ -367,10 +377,10 @@ export async function handler(chatUpdate) {
                 // ANTIBAN: el breaker cuenta los errores por plugin; con demasiados
                 // en ventana corta, el plugin entra en cuarentena y se avisa al owner
                 try { global.__antiban?.reportCommandResult?.(name, err) } catch { }
-                console.error(err)
+                logPluginError(name, err, this)
             } finally {
                 if (typeof plugin.after === "function") {
-                    try { await plugin.after.call(this, m, extra) } catch (e) {}
+                    try { await plugin.after.call(this, m, extra) } catch (e) { logPluginError(name + ' (after)', e, this) }
                 }
             }
             break

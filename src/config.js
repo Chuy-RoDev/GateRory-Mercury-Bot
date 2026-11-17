@@ -33,7 +33,10 @@ if (!fs.existsSync(`./${global.sessions}`)) {
 //  CONFIGURACIÓN PRINCIPAL
 // ─────────────────────────────
 global.botNumber = ""
-global.owner = [
+// Owners: se leen de .env (OWNER_NUMBERS=numero1,numero2,...) si existe,
+// y si no, se usan los de abajo — el bot funciona idéntico en ambos casos.
+const ownersEnv = (process.env.OWNER_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean)
+global.owner = ownersEnv.length ? ownersEnv : [
   "573114910796",
   "573237649689",
   "819095203873",

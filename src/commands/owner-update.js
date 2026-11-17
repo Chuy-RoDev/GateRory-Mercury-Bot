@@ -1,37 +1,33 @@
-import { execSync } from 'child_process'
+// /update · /fix · /actualizar · /up — UNIFICADO (antes había dos plugins que
+// peleaban por /update). Combina: git stash pull pop con reinicio de pm2
+// (de _update.js) + reporte detallado de archivos y detección de conflictos
+// locales (de owner-update.js). Solo Real Owners.
+import { exec, execSync } from 'child_process'
 
 var handler = async (m, { conn, text, isROwner }) => {
     if (!isROwner) return
-    
+
     try {
-        const stdout = execSync('git pull' + (m.fromMe && text ? ' ' + text : ''));
-        let output = stdout.toString().trim();
+        await conn.reply(m.chat, `ꕤ Buscando actualizaciones...`, m)
+        // stash pull pop: guarda cambios locales, actualiza y los devuelve
+        const stdout = execSync('git stash && git pull origin main && git stash pop', { stdio: 'pipe' }).toString().trim()
 
-        if (output.includes('Already up to date.')) {
-            return conn.reply(m.chat, 'ꕤ Actualización lista.', m)
+        if (stdout.includes('Already up to date') || stdout.includes('Already up to date.')) {
+            return conn.reply(m.chat, 'ꕤ El bot ya está en su versión más reciente.', m)
         }
 
-        if (output.includes('Updating')) {
-            const lines = output.split('\n');
-            
-            // Filtrar y formatear la lista de archivos
-            const files = lines
-                .filter(line => line.includes('|') && !line.includes('files changed'))
-                .map(line => `> ✰ ${line.split('|')[0].trim()}`)
-                .join('\n');
+        // Reporte detallado: archivos cambiados y total
+        const lines = stdout.split('\n')
+        const files = lines
+            .filter(line => line.includes('|') && !line.includes('files changed'))
+            .map(line => `> ✰ ${line.split('|')[0].trim()}`)
+            .join('\n')
+        const stats = lines.find(line => line.includes('changed'))
+        const changedCount = stats ? stats.match(/\d+/g)?.[0] || '0' : '0'
 
-            // Extraer cantidad de archivos cambiados
-            const stats = lines.find(line => line.includes('changed'));
-            const changedCount = stats ? stats.match(/\d+/g)[0] : '0';
-
-            const message = `\`❏ Actualización\`\n──────────────────\n\n*ꕤ Lista de Archivos*\n${files}\n\n*ꕤ Cambios Totales: ${changedCount}*\n\n> By *Shiroko*`
-            
-            return conn.reply(m.chat, message, m)
-        }
-
-        conn.reply(m.chat, output, m)
-
-    } catch (e) { 
+        await conn.reply(m.chat, `\`❏ Actualización\`\n──────────────────\n\n*ꕤ Lista de Archivos*\n${files || '> ✰ sin detalles de archivos'}\n\n*ꕤ Cambios Totales: ${changedCount}*\n\n> Reiniciando...`, m)
+        exec('pm2 restart index')
+    } catch (e) {
         try {
             const status = execSync('git status --porcelain')
             if (status.length > 0) {
@@ -49,15 +45,16 @@ var handler = async (m, { conn, text, isROwner }) => {
             }
         } catch (error) {
             console.error(error)
-            let errorMessage2 = '⚠︎ Ocurrió un error inesperado.'
-            if (error.message) errorMessage2 += '\n⚠︎ Mensaje de error: ' + error.message
-            await conn.reply(m.chat, errorMessage2, m)
         }
+        const errorMessage2 = '⚠︎ Ocurrió un error inesperado al actualizar.'
+        if (e.message) errorMessage2 += `\n⚠︎ Mensaje de error: ` + e.message
+        return conn.reply(m.chat, errorMessage2, m)
     }
 }
 
 handler.help = ['update']
 handler.tags = ['owner']
 handler.command = ['update', 'fix', 'actualizar', 'up']
+handler.rowner = true
 
 export default handler

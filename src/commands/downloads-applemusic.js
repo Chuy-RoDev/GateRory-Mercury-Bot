@@ -11,7 +11,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     search: async (query) => {
       const url = `https://music.apple.com/us/search?term=${query}`;
       try {
-        const { data } = await axios.get(url);
+        const { data } = await axios.get(url, { timeout: 30000 });
         const $ = cheerio.load(data);
         const results = [];
         $('.desktop-search-page .section[data-testid="section-container"] .grid-item').each((index, element) => {
@@ -28,7 +28,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
     },
     detail: async (url) => {
       try {
-        const { data } = await axios.get(url);
+        const { data } = await axios.get(url, { timeout: 30000 });
         const $ = cheerio.load(data);
         const albumTitle = $('h1[data-testid="non-editable-product-title"]').text().trim();
         const artistName = $('a[data-testid="click-action"]').first().text().trim();
@@ -47,6 +47,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
       const url = `https://aaplmusicdownloader.com/api/applesearch.php?url=${urls}`;
       try {
         const response = await axios.get(url, {
+          timeout: 30000,
           headers: {
             'Accept': 'application/json, text/javascript, */*; q=0.01',
             'X-Requested-With': 'XMLHttpRequest',
@@ -76,7 +77,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
         'Referer': 'https://aaplmusicdownloader.com/song.php#'
       };
       try {
-        const response = await axios.post(url, qs.stringify(data), { headers });
+        const response = await axios.post(url, qs.stringify(data), { headers, timeout: 30000 });
         return response.data.dlink;
       } catch (error) {
         console.error("Error obteniendo audio de Apple Music:", error.message);
@@ -108,7 +109,7 @@ let handler = async (m, { conn, text, usedPrefix, command }) => {
       };
 
       try {
-        const response = await axios.post(url, `data=${encodedData}`, { headers });
+        const response = await axios.post(url, `data=${encodedData}`, { headers, timeout: 30000 });
         const $ = cheerio.load(response.data);
         const trackName = $('td:contains("Track Name:")').next().text();
         const albumName = $('td:contains("Album:")').next().text();

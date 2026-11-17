@@ -12,8 +12,8 @@ let repos = []
 const match = text.match(regex)
 if (match) {
 const [, user, repo] = match
-const repoRes = await fetch(`https://api.github.com/repos/${user}/${repo}`)
-const zipRes = await fetch(`https://api.github.com/repos/${user}/${repo}/zipball`)
+const repoRes = await fetch(`https://api.github.com/repos/${user}/${repo}`, { signal: AbortSignal.timeout(30000) })
+const zipRes = await fetch(`https://api.github.com/repos/${user}/${repo}/zipball`, { signal: AbortSignal.timeout(30000) })
 const repoData = await repoRes.json()
 zipName = zipRes.headers.get('content-disposition')?.match(/filename=(.*)/)?.[1]
 if (!zipName) zipName = `${repo}-${user}.zip`
@@ -21,11 +21,11 @@ zipBuffer = await zipRes.buffer()
 repos.push(repoData)
 image = 'https://raw.githubusercontent.com/The-King-Destroy/Adiciones/main/Contenido/1745610598914.jpeg'
 } else {
-const res = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(text)}`)
+const res = await fetch(`https://api.github.com/search/repositories?q=${encodeURIComponent(text)}`, { signal: AbortSignal.timeout(30000) })
 const json = await res.json()
 if (!json.items.length) return conn.reply(m.chat, '✧ No se encontraron resultados.', m)
 repos = json.items
-image = await (await fetch(repos[0].owner.avatar_url)).buffer()
+image = await (await fetch(repos[0].owner.avatar_url, { signal: AbortSignal.timeout(30000) })).buffer()
 }
 info += repos.map((repo, index) => `✩ Resultado: ${index + 1}
 ✩ Creador: ${repo.owner.login}

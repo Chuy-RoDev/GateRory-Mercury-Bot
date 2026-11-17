@@ -3,7 +3,8 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const commandsDir = path.join(__dirname, 'src', 'commands')
+// movido a extras/: las rutas del proyecto quedan un nivel arriba
+const commandsDir = path.join(__dirname, '..', 'src', 'commands')
 
 function processFile(filePath) {
     try {
