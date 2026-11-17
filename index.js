@@ -1,7 +1,5 @@
 process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '1'
 
-// Carga .env ANTES que config.js (los imports ESM se evalúan en orden)
-import './lib/env.js'
 import './src/config.js'
 import './src/commands/main-allfake.js'
 // ANTIBAN: capa anti-detección/anti-ban. Debe cargarse ANTES de main.js para que

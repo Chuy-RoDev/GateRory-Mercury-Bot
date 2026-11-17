@@ -171,7 +171,6 @@ Los **pasos** son: te muestra cuántos posts tiene el tag → *"Este tag ya exis
 - **`/update` · `/fix` · `/actualizar` · `/up`** unificados: `git stash` + `pull` + reinicio automático de pm2, con reporte de archivos cambiados y detección de conflictos locales.
 - **Anti-spam por comando**: comandos pesados tienen cooldown por chat configurable en `lib/cooldown.js`.
 - **Errores visibles**: si un plugin falla, verás `[PLUGIN-ERROR] hora · archivo · mensaje` en consola, se guarda en `tmp/plugin-errors.log` y se avisa al owner por WhatsApp.
-- **`.env` opcional** (ver Configuración): owners y API keys fuera del código si lo deseas.
 
 ---
 
@@ -334,18 +333,6 @@ Edita `src/config.js`:
 | `global.modes.antilink` | Antilink activado por defecto | `false` |
 
 > El bot acepta **tres prefijos**: `:`, `💙` y `/` — ejemplos: `:menu`, `💙menu`, `/menu`.
-
-### 🔐 Opcional: archivo `.env` (valores fuera del código)
-
-Copia `.env.example` a `.env` (está en `.gitignore`, nunca se sube a GitHub) y define:
-
-| Variable | Sustituye a | Ejemplo |
-|---|---|---|
-| `OWNER_NUMBERS` | Los números de `global.owner` | `57...,57...` (separados por coma) |
-| `R34_API_KEY` | La API key de Rule34 (`lib/r34flow.js`) | el token hex |
-| `R34_USER_ID` | El user_id de Rule34 | `12345` |
-
-Si no existe `.env`, el bot usa los valores del código y funciona **idéntico** — el `.env` solo sobreescribe.
 
 > 🗂️ Los scripts de mantenimiento que no son parte del bot (`dedup.js`, `populate.js`, parches antiguos) viven en **`extras/`** — ver `extras/README.md`.
 
