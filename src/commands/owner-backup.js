@@ -10,11 +10,12 @@ switch (command) {
 case 'backup': case 'copia': {
 await m.react('🕒')
 const date = new Date().toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })
+// SEGURIDAD: creds.json ya NO se envía por WhatsApp — contiene la llave de la
+// sesión del bot (quien la tenga puede entrar como él). Para migrar sesión se
+// copia la carpeta Sessions/ directamente en el servidor, nunca por chat.
 const database = await fs.readFileSync('./database.json')
-const creds = await fs.readFileSync('./Sessions/Principal/creds.json')
-await conn.reply(m.chat, `*• Fecha:* ${date}`, m)
+await conn.reply(m.chat, `*• Fecha:* ${date}\n> El backup incluye *database.json* (usuarios, gacha, economía). El archivo de sesión ya no se envía por seguridad.`, m)
 await conn.sendMessage(m.sender, { document: database, mimetype: 'application/json', fileName: `database.json` }, { quoted: m })
-await conn.sendMessage(m.sender, { document: creds, mimetype: 'application/json', fileName: `creds.json` }, { quoted: m })
 await m.react('✔️')
 break
 }
