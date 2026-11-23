@@ -34,9 +34,9 @@ if (!fs.existsSync(`./${global.sessions}`)) {
 // ─────────────────────────────
 global.botNumber = ""
 global.owner = [
+  "584142921488",       // ← EL DUEÑO REAL: SIEMPRE PRIMERO (owner[0] recibe las notificaciones del sistema)
   "573237649689",
   "819095203873",
-  "584142921488",
   "525656953441",       //
   "85882736517135"     //
 ]
