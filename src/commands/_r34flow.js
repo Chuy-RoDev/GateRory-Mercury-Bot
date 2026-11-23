@@ -3,10 +3,12 @@
 //   confirm  → responde Si/No al "este tag ya existe, ¿es correcto?"
 //   tags     → responde con el NÚMERO del tag de la lista
 //   formato  → responde videos / imagenes / mixto (+ cantidad personalizada)
+//   grupo    → SOLO PRIVADO: nº del grupo destino tras preparar todo (0 = aquí)
 // Nunca devuelve true: no corta el procesamiento de otros plugins.
 import {
     getSesion, setSesion, delSesion, fetchPosts, suggestTags,
-    parseFormato, buscar, enviar, resumenTag, textoFormato, textoTags
+    parseFormato, buscar, enviar, pedirGrupo, textoGrupos,
+    resumenTag, textoFormato, textoTags
 } from '../../lib/r34flow.js'
 
 export async function before(m, { conn }) {
@@ -79,7 +81,38 @@ export async function before(m, { conn }) {
                 : f.tipo === 'imagen'
                     ? `Encontré *${r.imagenes} imágenes* de *${ses.tag}*... *Pervertido.*${avisoExceso}`
                     : `Encontré *${r.imagenes} imágenes* y *${r.videos} vídeos* de *${ses.tag}*... *Pervertido.*${avisoExceso}`
+            // EN PRIVADO: el proceso corrió completo → ahora sí se elige el grupo
+            if (!/@g\.us$/.test(m.chat)) return await pedirGrupo(conn, m, r.medias, caption)
             return await enviar(conn, m, r.medias, caption)
+        }
+
+        if (ses.paso === 'grupo') {
+            // acepta "0", "1", "1,3" o "1 3" — cada número es un grupo de la lista
+            if (!/^\d[\d\s,]*$/.test(bajo)) {
+                return m.reply(`ꕤ Responde con el *número* del grupo (o *0* para este chat)\n\n${textoGrupos(ses.grupos)}`)
+            }
+            const nums = [...new Set(bajo.match(/\d+/g).map(Number))]
+            const max = ses.grupos.length
+            if (nums.some(n => n > max)) {
+                return m.reply(`ꕤ Solo hay *${max}* grupo(s) en mi lista...\n> Responde del *0* al *${max}*\n\n${textoGrupos(ses.grupos)}`)
+            }
+            const aqui = nums.includes(0)
+            const elegidos = nums.filter(n => n >= 1).map(n => ses.grupos[n - 1])
+            delSesion(m.chat)
+            await m.react('⏳')
+            const ok = []
+            const fallo = []
+            for (const g of elegidos) {
+                try { await enviar(conn, m, ses.medias, ses.caption, g.id); ok.push(g.nombre) } catch { fallo.push(g.nombre) }
+            }
+            if (aqui) {
+                try { await enviar(conn, m, ses.medias, ses.caption); ok.push('este chat') } catch { fallo.push('este chat') }
+            }
+            await m.react(ok.length ? '✔️' : '❌')
+            if (ok.length) {
+                return m.reply(`ꕤ Enviado a: *${ok.join('*, *')}*${fallo.length ? `\n> Falló con: *${fallo.join('*, *')}*` : ''}`)
+            }
+            return m.reply(`*Ugh, no pude enviar a ningún grupo.* 🛠️\n> Intenta de nuevo: *${pref}r34 <tag>*`)
         }
     } catch (e) {
         console.error('Error _r34flow:', e)

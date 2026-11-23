@@ -5,9 +5,12 @@
 //   · /r34 <tag> imagen|menu→ PASOS: resumen → confirm Si/No → menú de formato
 //                             (las imágenes solas solo se buscan por estos pasos)
 //   · 0 resultados          → lista de tags parecidos numerada (sesión activa)
-// Las respuestas (Si/No/número/formato) las atiende _r34flow.js
+//   · ANTI-IA               → nada de resultados hechos/tocados por IA
+//   · EN PRIVADO            → el proceso corre completo ANTES de enviar y al
+//                             final eliges a qué grupo mandarlo (0 = este chat)
+// Las respuestas (Si/No/número/formato/grupo) las atiende _r34flow.js
 import {
-    fetchPosts, suggestTags, buscar, enviar, setSesion, delSesion,
+    fetchPosts, suggestTags, buscar, enviar, pedirGrupo, setSesion, delSesion,
     resumenTag, textoConfirm, textoTags, CAPS
 } from '../../lib/r34flow.js'
 
@@ -19,6 +22,9 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
     if (m.isGroup && !chat?.nsfw) {
         return m.reply(`El NSFW está deshabilitado... ¿Realmente quieres hacer esto?..\n> Un administrador debe activarlo con: *${usedPrefix}nsfw on*`)
     }
+
+    // El selector de grupo destino SOLO aplica en privado; en grupos todo igual
+    const esPrivado = !/@g\.us$/.test(m.chat)
 
     delSesion(m.chat) // una búsqueda nueva siempre arranca de cero
 
@@ -83,7 +89,10 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
                 return m.reply(`*Cero vídeos encontrados.* 🦈\nNo hay resultados para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)
             }
             await m.react('✔️')
-            return await enviar(conn, m, r.medias, `Encontré *${r.videos} vídeo(s)* de *${cleanTag}*... *Pervertido.*`)
+            const capV = `Encontré *${r.videos} vídeo(s)* de *${cleanTag}*... *Pervertido.*`
+            // EN PRIVADO: todo el proceso corre antes y al final se elige el grupo
+            if (esPrivado) return await pedirGrupo(conn, m, r.medias, capV)
+            return await enviar(conn, m, r.medias, capV)
         }
 
         // ── CASO 3: directo MIXTO (/r34 tag o /r34 tag mix [N]) ──
@@ -103,7 +112,10 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
             return m.reply(`*Cero archivos encontrados.* 🦈\nNo hay resultados para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)
         }
         await m.react('✔️')
-        return await enviar(conn, m, r.medias, `Encontré *${r.imagenes} imágenes* y *${r.videos} vídeos* de *${cleanTag}*... *Pervertido.*`)
+        const capM = `Encontré *${r.imagenes} imágenes* y *${r.videos} vídeos* de *${cleanTag}*... *Pervertido.*`
+        // EN PRIVADO: todo el proceso corre antes y al final se elige el grupo
+        if (esPrivado) return await pedirGrupo(conn, m, r.medias, capM)
+        return await enviar(conn, m, r.medias, capM)
 
     } catch (e) {
         console.error('Error Rule34:', e)
