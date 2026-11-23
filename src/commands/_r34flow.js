@@ -1,8 +1,9 @@
 // _r34flow.js — atiende las respuestas del flujo /r34 (módulo before).
 // Sesión por chat creada por nsfw-rule34.js en lib/r34flow.js:
-//   confirm  → responde Si/No al "este tag ya existe, ¿es correcto?"
 //   tags     → responde con el NÚMERO del tag de la lista
-//   formato  → responde videos / imagenes / mixto (+ cantidad personalizada)
+//   formato  → responde videos / imagenes / mixto (+ cantidad personalizada);
+//              es el paso DEFAULT de "/r34 tag" (el dueño pidió que pregunte
+//              el formato en vez de mandar mixto directo)
 //   grupo    → SOLO PRIVADO: nº del grupo destino tras preparar todo (0 = aquí)
 // FIX LID: en privado WhatsApp alterna el JID del MISMO chat entre
 // @s.whatsapp.net y @lid → la búsqueda de la sesión es flexible
@@ -34,23 +35,6 @@ export async function before(m, { conn }) {
     }
 
     try {
-        if (ses.paso === 'confirm') {
-            if (/^(si|sí|yes|s)\b/.test(bajo)) {
-                setSesion(clave, { ...ses, paso: 'formato' })
-                return m.reply(textoFormato(ses.tag))
-            }
-            if (/^(no|n)\b/.test(bajo)) {
-                const sugerencias = await suggestTags(ses.tag)
-                if (!sugerencias.length) {
-                    delSesion(clave)
-                    return m.reply(`ꕤ Está bien, no es ese tag... pero no encontré parecidos para *${ses.tag}*.\n> Prueba con otro: *${pref}r34 <tag>*`)
-                }
-                setSesion(clave, { ...ses, paso: 'tags', tags: sugerencias })
-                return m.reply(textoTags(ses.tag, sugerencias, `ꕤ ¿No era el tag correcto? Elige uno de estos:\n\n`))
-            }
-            return m.reply(`ꕤ Responde *Si* o *No*\n> (*cancelar* para salir)`)
-        }
-
         if (ses.paso === 'tags') {
             const n = parseInt(bajo, 10)
             if (isNaN(n) || n < 1 || n > ses.tags.length) {
