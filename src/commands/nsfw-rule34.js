@@ -12,7 +12,7 @@
 //       RUTA 2: */r34 <respuesta>* — ESTE archivo (pasa por el mismo camino que
 //               el comando, funciona aunque el before no se llegue a ejecutar)
 import {
-    fetchPosts, suggestTags, buscar, enviar, pedirGrupo, setSesion, delSesionFlexible,
+    fetchPosts, suggestTags, resolverTag, buscar, enviar, pedirGrupo, setSesion, delSesionFlexible,
     getSesionFlexible, manejarRespuesta,
     resumenTag, textoFormato, textoTags, CAPS
 } from '../../lib/r34flow.js'
@@ -82,43 +82,55 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
             const tipo = pideVideo ? 'video' : pideImagen ? 'imagen' : 'mixto'
             const tope = CAPS[tipo]
             const cantidad = Math.min(N ?? tope, tope)
-            const r = await buscar(tipo, cleanTag, cantidad)
+            let tagFinal = cleanTag
+            let r = await buscar(tipo, cleanTag, cantidad)
+            if (!r.medias.length) {
+                // AUTORESOLVE: "mavuika" → el tag real "mavuika_(genshin_impact)"
+                const resuelto = await resolverTag(cleanTag)
+                if (resuelto) {
+                    tagFinal = resuelto.tag
+                    r = await buscar(tipo, tagFinal, cantidad)
+                }
+            }
             if (!r.medias.length) {
                 await m.react('❌')
-                const sugerencias = await suggestTags(cleanTag)
+                const sugerencias = await suggestTags(tagFinal)
                 if (sugerencias.length) {
-                    setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0, dueno: m.sender })
+                    setSesion(m.chat, { paso: 'tags', tag: tagFinal, tags: sugerencias, count: 0, dueno: m.sender })
                     await m.react('✔️')
-                    return m.reply(textoTags(cleanTag, sugerencias))
+                    return m.reply(textoTags(tagFinal, sugerencias))
                 }
-                return m.reply(`*Cero ${ceroDe(tipo)} encontrados.* 🦈\nNo hay resultados para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)
+                return m.reply(`*Cero ${ceroDe(tipo)} encontrados.* 🦈\nNo hay resultados para "${tagFinal}".\n\n> Tip: con escribir el nombre basta — yo busco el tag real (ej: *mavuika* → *mavuika_(genshin_impact)*).`)
             }
             await m.react('✔️')
             const cap = tipo === 'video'
-                ? `Encontré *${r.videos} vídeo(s)* de *${cleanTag}*... *Pervertido.*`
+                ? `Encontré *${r.videos} vídeo(s)* de *${tagFinal}*... *Pervertido.*`
                 : tipo === 'imagen'
-                    ? `Encontré *${r.imagenes} imágenes* de *${cleanTag}*... *Pervertido.*`
-                    : `Encontré *${r.imagenes} imágenes* y *${r.videos} vídeos* de *${cleanTag}*... *Pervertido.*`
+                    ? `Encontré *${r.imagenes} imágenes* de *${tagFinal}*... *Pervertido.*`
+                    : `Encontré *${r.imagenes} imágenes* y *${r.videos} vídeos* de *${tagFinal}*... *Pervertido.*`
             // EN PRIVADO: todo el proceso corre antes y al final se elige el grupo
             if (esPrivado) return await pedirGrupo(conn, m, r.medias, cap)
             return await enviar(conn, m, r.medias, cap)
         }
 
         // ── DEFAULT (la idea del dueño): /r34 tag → pregunta el formato ──
-        const posts = await fetchPosts(cleanTag)
-        if (!posts.length) {
+        // AUTORESOLVE: prueba el tag tal cual y si no da nada busca el tag REAL
+        // del personaje vía autocomplete (así "mavuika" encuentra al personaje,
+        // no un menú de sugerencias donde se aterriza en cualquier cosa)
+        const resuelto = await resolverTag(cleanTag)
+        if (!resuelto) {
             await m.react('❌')
             const sugerencias = await suggestTags(cleanTag)
             if (!sugerencias.length) {
-                return m.reply(`*Cero archivos encontrados.* 🦈\nNo hay resultados ni tags parecidos para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)
+                return m.reply(`*Cero archivos encontrados.* 🦈\nNo hay resultados ni tags parecidos para "${cleanTag}".\n\n> Tip: con escribir el nombre del personaje basta — yo busco el tag real (ej: *mavuika* → *mavuika_(genshin_impact)*).`)
             }
             setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0, dueno: m.sender })
             await m.react('✔️')
             return m.reply(textoTags(cleanTag, sugerencias))
         }
-        setSesion(m.chat, { paso: 'formato', tag: cleanTag, count: posts.length, dueno: m.sender })
+        setSesion(m.chat, { paso: 'formato', tag: resuelto.tag, count: resuelto.posts.length, dueno: m.sender })
         await m.react('✔️')
-        return m.reply(`${resumenTag(cleanTag, posts.length)}\n\n${textoFormato(cleanTag)}`)
+        return m.reply(`${resumenTag(resuelto.tag, resuelto.posts.length)}\n\n${textoFormato(resuelto.tag)}`)
 
     } catch (e) {
         console.error('Error Rule34:', e)
