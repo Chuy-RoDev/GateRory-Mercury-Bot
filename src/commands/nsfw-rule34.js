@@ -10,7 +10,7 @@
 //                             final eliges a qué grupo mandarlo (0 = este chat)
 // Las respuestas (Si/No/número/formato/grupo) las atiende _r34flow.js
 import {
-    fetchPosts, suggestTags, buscar, enviar, pedirGrupo, setSesion, delSesion,
+    fetchPosts, suggestTags, buscar, enviar, pedirGrupo, setSesion, delSesion, delSesionFlexible,
     resumenTag, textoConfirm, textoTags, CAPS
 } from '../../lib/r34flow.js'
 
@@ -26,7 +26,9 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
     // El selector de grupo destino SOLO aplica en privado; en grupos todo igual
     const esPrivado = !/@g\.us$/.test(m.chat)
 
-    delSesion(m.chat) // una búsqueda nueva siempre arranca de cero
+    // una búsqueda nueva siempre arranca de cero (borra sesiones bajo cualquier
+    // variante de JID del chat: @s.whatsapp.net o @lid)
+    delSesionFlexible(m)
 
     if (!args[0]) {
         return m.reply(`Esto... ¿Realmente quieres que haga esto?... *Pervertido.*\n\n> *Ejemplos:*\n*${usedPrefix + command} mika_misono* → mixto (25 de cada)\n*${usedPrefix + command} mika_misono video 50* → solo vídeos\n*${usedPrefix + command} mika_misono imagen* → pasos con menú\n\n> Tip: los tags van con _ en vez de espacios.`)
@@ -57,7 +59,7 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
             }
             const posts = await fetchPosts(cleanTag)
             if (posts.length) {
-                setSesion(m.chat, { paso: 'confirm', tag: cleanTag, count: posts.length, tags: [] })
+                setSesion(m.chat, { paso: 'confirm', tag: cleanTag, count: posts.length, tags: [], dueno: m.sender })
                 await m.react('✔️')
                 return m.reply(`${resumenTag(cleanTag, posts.length)}\n\n${textoConfirm(cleanTag, posts.length)}`)
             }
@@ -66,7 +68,7 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
                 await m.react('❌')
                 return m.reply(`*Cero archivos encontrados.* 🦈\nNo hay resultados ni tags parecidos para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)
             }
-            setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0 })
+            setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0, dueno: m.sender })
             await m.react('✔️')
             return m.reply(textoTags(cleanTag, sugerencias))
         }
@@ -83,7 +85,7 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
                 await m.react('❌')
                 const sugerencias = await suggestTags(cleanTag)
                 if (sugerencias.length) {
-                    setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0 })
+                    setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0, dueno: m.sender })
                     return m.reply(textoTags(cleanTag, sugerencias))
                 }
                 return m.reply(`*Cero vídeos encontrados.* 🦈\nNo hay resultados para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)
@@ -106,7 +108,7 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
             await m.react('❌')
             const sugerencias = await suggestTags(cleanTag)
             if (sugerencias.length) {
-                setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0 })
+                setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: sugerencias, count: 0, dueno: m.sender })
                 return m.reply(textoTags(cleanTag, sugerencias))
             }
             return m.reply(`*Cero archivos encontrados.* 🦈\nNo hay resultados para "${cleanTag}".\n\n> Tip: los tags usan _ en vez de espacios (ej: *mikasa_ackerman*) y suelen estar en inglés.`)

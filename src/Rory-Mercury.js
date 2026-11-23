@@ -1,5 +1,6 @@
 import { smsg } from "../lib/simple.js"
 import { checkCooldown } from "../lib/cooldown.js"
+import { tieneSesionR34 } from "../lib/r34flow.js"
 import { logPluginError } from "../lib/pluginlog.js"
 import { format } from "util"
 import { fileURLToPath } from "url"
@@ -230,7 +231,12 @@ export async function handler(chatUpdate) {
 
         if (!m.isGroup) {
             const cmdPermitidos = /^[./!#]?(restart|update|join|reload|code|qr|jadibot|subbot|ping|estado|status|infobot|help|menu)$/i
-            if (!isOwner && !cmdPermitidos.test(m.text) && isMainBot) return
+            // FIX LID: WhatsApp alterna el JID de un mismo chat privado entre
+            // @s.whatsapp.net y @lid — con @lid el remitente no matchea la lista
+            // de owners y las respuestas del flujo /r34 morían aquí en silencio.
+            // Si el chat tiene una sesión r34 activa (creada por un owner), el
+            // mensaje es una respuesta del flujo y NO se corta.
+            if (!isOwner && !cmdPermitidos.test(m.text) && isMainBot && !tieneSesionR34(m.chat, m.sender)) return
         }
 
         // [ EJECUCIÓN DE PLUGINS ]
