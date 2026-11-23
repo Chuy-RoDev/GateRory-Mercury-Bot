@@ -14,7 +14,7 @@
 import {
     fetchPosts, suggestTags, resolverTag, buscar, enviar, pedirGrupo, setSesion, delSesionFlexible,
     getSesionFlexible, manejarRespuesta,
-    resumenTag, textoFormato, textoTags, CAPS
+    resumenTag, textoFormato, textoTags, CAPS, PAGINA
 } from '../../lib/r34flow.js'
 
 const VIDEO_CMDS = ['r34vid', 'rule34vid', 'rulevid']
@@ -115,8 +115,10 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
 
         // ── DEFAULT (la idea del dueño): /r34 tag → pregunta el formato ──
         // AUTORESOLVE: prueba el tag tal cual y si no da nada busca el tag REAL
-        // del personaje vía autocomplete (así "mavuika" encuentra al personaje,
-        // no un menú de sugerencias donde se aterriza en cualquier cosa)
+        // del personaje vía autocomplete. Si el tag crudo NO tiene nada útil y
+        // hay varios parecidos → MENÚ DE TAGS CON CONTEOS para que el dueño
+        // elija (el #1 es el que más posts tiene). Si el tag es exacto y
+        // existe → directo al menú de formato, sin pasos de más.
         const resuelto = await resolverTag(cleanTag)
         if (!resuelto) {
             await m.react('❌')
@@ -128,9 +130,19 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
             await m.react('✔️')
             return m.reply(textoTags(cleanTag, sugerencias))
         }
-        setSesion(m.chat, { paso: 'formato', tag: resuelto.tag, count: resuelto.posts.length, dueno: m.sender })
+        if (!resuelto.directo && resuelto.candidatos.length > 1) {
+            setSesion(m.chat, { paso: 'tags', tag: cleanTag, tags: resuelto.candidatos, count: 0, dueno: m.sender, probados: [cleanTag] })
+            await m.react('✔️')
+            return m.reply(textoTags(cleanTag, resuelto.candidatos, `ꕤ Encontré *${resuelto.candidatos.length} tags* parecidos a *${cleanTag}* en *Rule34*:\n\n> El *#1* es el que más posts tiene.\n\n`))
+        }
+        // conteo PROFUNDO (3 páginas): con 1 página un tag grande mostraba solo
+        // la ventana más nueva (99 de mavuika) y parecía que faltaba contenido
+        const posts = resuelto.posts.length >= PAGINA
+            ? await fetchPosts(resuelto.tag, { paginas: 3, objetivo: 300 })
+            : resuelto.posts
+        setSesion(m.chat, { paso: 'formato', tag: resuelto.tag, count: posts.length, dueno: m.sender })
         await m.react('✔️')
-        return m.reply(`${resumenTag(resuelto.tag, resuelto.posts.length)}\n\n${textoFormato(resuelto.tag)}`)
+        return m.reply(`${resumenTag(resuelto.tag, posts.length)}\n\n${textoFormato(resuelto.tag)}`)
 
     } catch (e) {
         console.error('Error Rule34:', e)
