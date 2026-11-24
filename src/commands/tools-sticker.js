@@ -2,7 +2,7 @@
 // el mismo comando). Combina: marca personalizada con • o | (de tools-sticker.js),
 // soporte de URLs, alias 'stiker' y cadena de respaldo por subida web
 // (de tools-stickers.js), ruta rápida webp con addExif y reacciones.
-import { sticker, addExif, stickerConAudio, videoTieneAudio } from '../../lib/sticker.js'
+import { sticker, addExif, stickerConAudio, videoTieneAudio, enviarStickerConAudio } from '../../lib/sticker.js'
 import uploadFile from '../../lib/uploadFile.js'
 import uploadImage from '../../lib/uploadImage.js'
 import { webp2png } from '../../lib/webp2mp4.js'
@@ -78,15 +78,19 @@ let handler = async (m, { conn, args }) => {
                 if (out) stiker = await sticker(false, out, pack, author).catch(() => null)
             }
         } else {
-            // ── sticker CON SONIDO (nuevo): los videos con pista de audio salen
-            // solos con sonido (o si se pidió el flag 'audio'); 'mudo' conserva el
-            // clásico silencioso. Si la conversión falla, cae al camino de abajo.
+            // ── sticker CON SONIDO (beta de WhatsApp): los videos con pista de
+            // audio salen solos con sonido (o si se pidió el flag 'audio'); 'mudo'
+            // conserva el clásico silencioso. El sticker es webp animado (≤10s,
+            // ≤0.96MB) y el audio viaja DENTRO del sticker; si la beta falla,
+            // sale el mismo sticker sin audio en vez de romper.
             if (!mudoPedido && /video/i.test(mime)) {
                 const vaConSonido = sonidoPedido || await videoTieneAudio(buffer).catch(() => false)
                 if (vaConSonido) {
                     const conSonido = await stickerConAudio(buffer).catch(() => null)
-                    if (conSonido && Buffer.isBuffer(conSonido)) {
-                        await conn.sendMessage(m.chat, { sticker: conSonido }, { quoted: m })
+                    if (conSonido && Buffer.isBuffer(conSonido.sticker) && conSonido.audio) {
+                        const betaOk = await enviarStickerConAudio(conn, m.chat, conSonido.sticker, conSonido.audio, m).catch(() => false)
+                        if (betaOk) return await conn.sendMessage(m.chat, { react: { text: '✔️', key: m.key } })
+                        await conn.sendMessage(m.chat, { sticker: conSonido.sticker }, { quoted: m })
                         return await conn.sendMessage(m.chat, { react: { text: '✔️', key: m.key } })
                     }
                 }
