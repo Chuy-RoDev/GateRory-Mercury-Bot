@@ -88,7 +88,11 @@ async function extraerAudio(videoUrl, titulo) {
 const handler = async (m, { conn, args, usedPrefix, command }) => {
     args = args.filter(v => v?.trim());
 
-    const sendExternalMessage = (msgText, options = {}) => m.reply(msgText, options)
+    // m.reply(text, chatId, options): el 2º parámetro es el JID de destino
+    // (lib/simple.js). Pasarle opciones como 2º arg metía un objeto {} como
+    // jid y Baileys crasheaba en isJidNewsletter ("jid?.endsWith is not a
+    // function"). Se pasa solo el texto; m.reply ya usa m.chat y cita el m.
+    const sendExternalMessage = (msgText) => m.reply(msgText)
 
     if (!args[0]) {
         return await sendExternalMessage(`*— (Bostezo)*... ¿Viniste a pedirme algo sin saber qué?\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} https://vt.tiktok.com/ZSmrDCvrS/`);
