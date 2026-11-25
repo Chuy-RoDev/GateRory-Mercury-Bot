@@ -35,7 +35,10 @@ global.__require = function require(dir = import.meta.url) {
 global.timestamp = { start: new Date() }
 const __dirname = global.__dirname(import.meta.url)
 
-global.opts = new Object(yargs(process.argv.slice(2)).exitProcess(false).parse())
+// MERGE, no replace: src/config.js ya definió global.opts (onlycc, self,
+// autoread...) y este yargs lo PISABA por completo — los valores base se
+// perdían en cada arranque y /onlycc arrancaba siempre en falso.
+global.opts = Object.assign(global.opts || {}, new Object(yargs(process.argv.slice(2)).exitProcess(false).parse()))
 
 const sessionArg = global.opts['session']
 if (sessionArg) {

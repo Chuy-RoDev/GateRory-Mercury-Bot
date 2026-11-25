@@ -152,7 +152,9 @@ const resetTimer = (conn, botNumber, chat, timeMs = 10 * 60 * 1000) => {
         state.lastGinfoSent = Date.now()
 
         await delay(stagger)
-        await conn.sendMessage(chat, { text: '#ginfo' })
+        // .catch: este código corre dentro de un setTimeout — un rechazo sin
+        // manejar (bot recién desconectado) no debe tumbar el proceso.
+        await conn.sendMessage(chat, { text: '#ginfo' }).catch(() => { })
         resetTimer(conn, botNumber, chat, 10 * 60 * 1000)
     }, timeMs)
 }
@@ -173,6 +175,9 @@ let handler = async (m, { conn, args, usedPrefix, command }) => {
         saveConfig(myCleanNumber, config)
         if (global.autorwTimersByBot?.[myCleanNumber]?.[chat]) {
             clearTimeout(global.autorwTimersByBot[myCleanNumber][chat])
+            // borra el handle muerto: si queda, el re-armado perezoso de before()
+            // no distingue "timer vivo" de "timer recién apagado"
+            delete global.autorwTimersByBot[myCleanNumber][chat]
         }
         return conn.sendMessage(chat, { text: `ꕤ AutoRW desactivado para @${myCleanNumber}.` }, { quoted: m })
     }
@@ -220,6 +225,18 @@ handler.before = async function (m, { conn }) {
 
     if (!gConfig.enabled) return
 
+    // El nombre aprendido del bot rival se hidrata del config: tras un reinicio
+    // la memoria (state) se vacía y sin nombre la ventana de 25s era lo único
+    // que identificaba las tarjetas — si llegaban tarde, /autorw quedaba sordo.
+    if (!state.botName && gConfig.name) state.botName = gConfig.name
+
+    // Re-armado perezoso: los setTimeout mueren cuando el bot se reinicia y los
+    // grupos con enabled=true quedaban SIN ciclo #ginfo hasta que alguien
+    // re-corriera /autorw sync. Si no hay timer vivo para este chat, se rearma.
+    if (!global.autorwTimersByBot?.[myCleanNumber]?.[chat]) {
+        resetTimer(conn, myCleanNumber, chat)
+    }
+
     let rawText = m.text || m.caption || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || ''
     const cleanText = cleanUnicode(rawText)
     if (!cleanText) return
@@ -228,7 +245,11 @@ handler.before = async function (m, { conn }) {
     const isCardMsg = !isGinfoMsg && /Nombre\s*»|Fuente\s*»/i.test(cleanText) && /Valor\s*»/i.test(cleanText)
     const isCooldownMsg = /Debes esperar|cooldown|agotado/i.test(cleanText)
 
-    const quotedSender = m.quoted ? getCleanNumber(m.quoted.sender) : null
+    // m.quoted.sender puede ser string o PROMISE según la versión de Baileys
+    // (así lo maneja anime-reactions.js); un "[object Promise]" aqui rompía la
+    // atribución de los cooldowns.
+    const quotedRaw = m.quoted ? m.quoted.sender : null
+    const quotedSender = quotedRaw ? getCleanNumber(await Promise.resolve(quotedRaw).catch(() => '')) : null
 
     // CASO 1: Cooldowns dirigidos
     if (isCooldownMsg) {
@@ -252,11 +273,18 @@ handler.before = async function (m, { conn }) {
 
         if (state.status === 'WAITING_GINFO' && isRecentRequest) {
             isForMe = true
-            if (extractedName) state.botName = extractedName
         } else if (state.botName && extractedName) {
             if (extractedName.toLowerCase() === state.botName.toLowerCase()) {
                 isForMe = true
             }
+        }
+
+        // Aprender/persistir el nombre: con el nombre guardado en el config, la
+        // tarjeta sigue siendo mía aunque el estado en memoria se pierda.
+        if (isForMe && extractedName && state.botName !== extractedName) {
+            state.botName = extractedName
+            gConfig.name = extractedName
+            saveConfig(myCleanNumber, config)
         }
 
         if (isForMe) {

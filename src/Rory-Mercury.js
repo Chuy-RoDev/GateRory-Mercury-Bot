@@ -327,14 +327,20 @@ export async function handler(chatUpdate) {
             const wa = plugin.botAdmin || plugin.admin || plugin.group || plugin.command
             if (chat.modoadmin && !isOwner && m.isGroup && !isAdmin && wa) return
 
-            if (global.opts['onlycc'] && !isROwner && !isOwners) return
+            // onlycc: global.opts (inmediato) O la db (settings.onlycc, persistente).
+            // Antes solo se leía global.opts, que index.js reconstruye en cada arranque.
+            if ((global.opts['onlycc'] || settings?.onlycc) && !isROwner && !isOwners) return
 
             const fail = plugin.fail || global.dfail
             if ((plugin.rowner || plugin.owner) && !isOwner) { fail("owner", m, this); continue }
             if (plugin.premium && !isPrems) { fail("premium", m, this); continue }
-            if (plugin.group && !m.isGroup) { fail("group", m, this); continue }
+            // FIX OWNER: los dueños del bot no pueden chocar con las puertas de
+            // grupo/admin — si no, el propio creador recibía "solo admins"/"solo
+            // grupos" al intentar /bot off o /onlyadmin on (no puede cambiar SU
+            // configuración). Los no-owner siguen pasando por dfail como siempre.
+            if (plugin.group && !m.isGroup && !isOwner) { fail("group", m, this); continue }
             if (plugin.botAdmin && !isBotAdmin) { fail("botAdmin", m, this); continue }
-            if (plugin.admin && !isAdmin) { fail("admin", m, this); continue }
+            if (plugin.admin && !isAdmin && !isOwner) { fail("admin", m, this); continue }
             if (plugin.private && m.isGroup) { fail("private", m, this); continue }
 
             m.isCommand = true

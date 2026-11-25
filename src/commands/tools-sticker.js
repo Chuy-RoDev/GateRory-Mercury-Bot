@@ -51,7 +51,7 @@ let handler = async (m, { conn, args }) => {
         }
 
         // El límite de 15s solo aplica al sticker *mudo* clásico: el sticker con
-        // sonido toma los primeros 10s del video (regla de stickers de WhatsApp),
+        // sonido toma los primeros 30s del video (regla del owner, subió el tope),
         // así que videos largos (p. ej. los de /tiktok) también se convierten.
         if (/video/.test(mime) && (q.msg || q).seconds > 15 && mudoPedido) {
             return conn.reply(m.chat, 'ꕤ Para sticker *mudo* el video no puede durar más de 15 segundos.', m)
@@ -80,7 +80,7 @@ let handler = async (m, { conn, args }) => {
         } else {
             // ── sticker CON SONIDO (beta de WhatsApp): los videos con pista de
             // audio salen solos con sonido (o si se pidió el flag 'audio'); 'mudo'
-            // conserva el clásico silencioso. El sticker es webp animado (≤10s,
+            // conserva el clásico silencioso. El sticker es webp animado (≤30s, fps intactos,
             // ≤0.96MB) y el audio viaja DENTRO del sticker; si la beta falla,
             // sale el mismo sticker sin audio en vez de romper.
             if (!mudoPedido && /video/i.test(mime)) {
