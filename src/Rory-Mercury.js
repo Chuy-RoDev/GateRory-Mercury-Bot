@@ -164,10 +164,22 @@ export async function handler(chatUpdate) {
         // Checamos los rangos: quién es dueño, quién es premium, y si el mensaje es nuestro.
         // Si estamos en un grupo, sacamos la lista de participantes de la caché (o de Baileys si no está)
         // para ver quiénes son los admins y superadmins "Si modificas algo y se daña ya tu sabe, vete al github y modificalo :v".
-        const isROwner = global.owner.some(num => {
-            const clean = parseNum(num)
-            return clean + "@s.whatsapp.net" === sender || clean + "@lid" === sender
-        }) || m.fromMe
+        // [ OWNER ] vía global.esOwnerJid (config.js): normaliza strings/arrays y
+        // resuelve @lid. WhatsApp alterna el sender entre @s.whatsapp.net y @lid y
+        // un @lid real jamás coincide con el número de teléfono — con el sender en
+        // @lid el owner dejaba de existir para el bot (y con /onlycc activo, el bot
+        // ignoraba TODOS sus mensajes). El PN del sender en LID llega en
+        // key.participantPn; se guarda en global.lidMap para que los plugins
+        // (que solo ven el JID) también puedan resolverlo.
+        const senderPn = String(sender || '').endsWith('@lid')
+            ? (m.key?.participantPn || global.lidMap[sender] || '')
+            : ''
+        if (senderPn && !global.lidMap[sender]) global.lidMap[sender] = this.decodeJid(senderPn)
+        const senderPnDigitos = senderPn ? parseNum(senderPn) : ''
+
+        const esOwnerDelMensaje = global.esOwnerJid(sender) ||
+            (!!senderPnDigitos && global.ownerDigitos.includes(senderPnDigitos))
+        const isROwner = m.fromMe || esOwnerDelMensaje
 
         const isOwner = isROwner
         const isPrems = isROwner || global.prems.some(v => {
@@ -175,13 +187,7 @@ export async function handler(chatUpdate) {
             return clean + "@s.whatsapp.net" === sender || clean + "@lid" === sender
         }) || user.premium
 
-        const isOwners = [
-            this.user.jid,
-            ...global.owner.flatMap(v => {
-                const clean = parseNum(v)
-                return [clean + "@s.whatsapp.net", clean + "@lid"]
-            })
-        ].includes(sender)
+        const isOwners = isROwner || parseNum(sender) === parseNum(this.user.jid)
 
         if (typeof m.text !== "string") m.text = ""
         m.exp += Math.ceil(Math.random() * 10)

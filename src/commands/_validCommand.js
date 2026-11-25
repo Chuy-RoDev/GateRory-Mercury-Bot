@@ -14,7 +14,10 @@ handler.before = async function (m, { conn }) {
 
     let chat = global.db.data.chats?.[m.chat] || {}
     let settings = global.db.data.settings?.[this.user.jid] || {}
-    let owner = global.owner?.some(([num]) => num && (num.replace(/[^0-9]/g, "") + "@s.whatsapp.net") === m.sender)
+    // global.esOwnerJid (config.js): global.owner son STRINGS y el destructuring
+    // ([num]) tomaba el primer carácter ("5") — el owner era tratado como
+    // cualquiera en chats muteados/baneados y el bot le ignoraba.
+    let owner = typeof global.esOwnerJid === 'function' ? global.esOwnerJid(m.sender) : false
     
     if (chat.modoadmin || settings.self || (chat.isMute && !owner) || (chat.isBanned && !owner)) return
 

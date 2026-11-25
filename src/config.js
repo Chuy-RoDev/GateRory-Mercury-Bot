@@ -40,6 +40,23 @@ global.owner = [
   "525656953441",       //
   "85882736517135"     //
 ]
+// ── HELPERS DE OWNER (fuente única de verdad) ──
+// global.owner contiene STRINGS, pero medio código los leía como arrays
+// (owner[0][0], ([num]) => ...): con un string eso toma UN SOLO CARÁCTER y
+// comparaba "5@s.whatsapp.net" — el owner quedaba invisible para los comandos
+// de admin/owner. Además WhatsApp alterna el sender entre @s.whatsapp.net y
+// @lid, y un @lid real NUNCA coincide con el número de teléfono. Todo chequeo
+// de owners pasa por aquí:
+const digitosDe = (v) => String(Array.isArray(v) ? v[0] : (v || '')).split('@')[0].split(':')[0].replace(/[^0-9]/g, '')
+global.digitosDe = digitosDe
+global.ownerDigitos = (Array.isArray(global.owner) ? global.owner : [global.owner]).map(digitosDe).filter(Boolean)
+global.lidMap = {} // jid "@lid" → jid "@s.whatsapp.net" (el dispatcher lo alimenta con participantPn)
+global.esOwnerJid = (jid) => {
+    const d = digitosDe(jid)
+    if (d && global.ownerDigitos.includes(d)) return true
+    const pn = global.lidMap[String(jid || '')]
+    return !!pn && global.ownerDigitos.includes(digitosDe(pn))
+}
 global.suittag = ["584142921488"]
 global.prems = []
 global.prefix = [":", "💙", "/"]

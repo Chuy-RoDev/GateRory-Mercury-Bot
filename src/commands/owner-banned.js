@@ -22,7 +22,7 @@ var parts = text.trim().split(' ')
 if (parts.length > 1) reason = parts.slice(1).join(' ')
 }
 if (who === conn.user.jid) return conn.reply(m.chat, `ꕤ @${bot} No puede ser baneado.`, m, { mentions: [who] })
-if (global.owner.some(function (x) { return who === x[0] + '@s.whatsapp.net' })) {
+if (global.esOwnerJid(who)) {
 return conn.reply(m.chat, `ꕤ No puedo banear al propietario @${who.split('@')[0]} de *@${bot}*.`, m, { mentions: [who, bot] })
 }
 if (!users[who]) users[who] = {}

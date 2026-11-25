@@ -18,7 +18,7 @@ const ownerGroup = m.chat.split`-`[0] + '@s.whatsapp.net'
 const users = participants.map(u => u.id).filter(v => v !== conn.user.jid && v.startsWith(lol))
 for (const user of users) {
 const error = `ꕤ @${user.split('@')[0]} ya ha sido eliminado o ha abandonado el grupo.`
-if (user !== ownerGroup && user !== conn.user.jid && user !== global.owner + '@s.whatsapp.net' && user.startsWith(lol) && isBotAdmin && bot.restrict) {
+if (user !== ownerGroup && user !== conn.user.jid && !global.esOwnerJid(user) && user.startsWith(lol) && isBotAdmin && bot.restrict) {
 await delay(2000)
 const responseb = await conn.groupParticipantsUpdate(m.chat, [user], 'remove')
 if (responseb[0].status === '404') m.reply(error, m.chat, { mentions: conn.parseMention(error) })

@@ -5,10 +5,11 @@ if (!user) return conn.reply(m.chat, `ꕤ Debes mencionar a un usuario para pode
 try {
 const groupInfo = await conn.groupMetadata(m.chat)
 const ownerGroup = groupInfo.owner || m.chat.split`-`[0] + '@s.whatsapp.net'
-const ownerBot = global.owner[0][0] + '@s.whatsapp.net'
 if (user === conn.user.jid) return conn.reply(m.chat, `ꕤ No puedes degradar al bot.`, m, (global.rcanalr || {}))
 if (user === ownerGroup) return conn.reply(m.chat, `ꕤ No puedes degradar al creador del grupo.`, m, (global.rcanalr || {}))
-if (user === ownerBot) return conn.reply(m.chat, `ꕤ No puedes degradar al propietario del bot.`, m, (global.rcanalr || {}))
+// esOwnerJid: owner[0][0] sobre un string tomaba "5@s.whatsapp.net" y el guard
+// nunca protegió a nadie; cubre cualquier owner (y su @lid)
+if (global.esOwnerJid(user)) return conn.reply(m.chat, `ꕤ No puedes degradar al propietario del bot.`, m, (global.rcanalr || {}))
 await conn.groupParticipantsUpdate(m.chat, [user], 'demote')
 conn.reply(m.chat, `ꕤ Fue descartado como admin.`, m, (global.rcanalr || {}))
 } catch (e) {

@@ -3,10 +3,10 @@ let handler = async (m, { conn, participants, isBotAdmin }) => {
     // JIDs LID). Ahora se acepta cualquier owner de global.owner (584142921488 ya está
     // en la lista, así que el comportamiento para ti no cambia).
     const digits = j => String(j || '').replace(/\D/g, '')
-    const ownerDigits = (Array.isArray(global.owner) ? global.owner : [])
-        .map(o => Array.isArray(o) ? String(o[0]) : String(o))
-        .filter(Boolean)
-    if (!ownerDigits.includes(digits(m.sender))) return
+    // esOwnerJid (config.js): normaliza global.owner (strings/arrays) y resuelve
+    // @lid vía global.lidMap — con un sender @lid los dígitos no son el teléfono
+    // y aquí el owner quedaba fuera de su propio comando.
+    if (!global.esOwnerJid(m.sender)) return
     if (!m.isGroup) return
     if (!isBotAdmin) return
 
