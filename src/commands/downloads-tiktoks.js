@@ -18,6 +18,39 @@ const newsletterName = "⏤͟͞ू⃪፝͜⁞⟡ 𝐄llen 𝐉ᴏ𝐄's 𝐒ervi
 
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', Referer: 'https://www.tikwm.com/' };
 
+// ── modo búsqueda (/tt <texto>): tikwm también sirve para buscar. Los resultados
+// quedan 5 minutos por chat+usuario para elegir con /tt <número> ──
+const busquedasPendientes = new Map(); // `${chat}|${sender}` → { lista, modo, ts }
+const ESPERA_BUSQUEDA_MS = 5 * 60 * 1000;
+const MAX_RESULTADOS_BUSQUEDA = 8;
+
+async function apiBuscarTikwm(texto) {
+    const res = await axios.get(`https://www.tikwm.com/api/feed/search?keywords=${encodeURIComponent(texto)}&count=${MAX_RESULTADOS_BUSQUEDA}`, {
+        headers: UA, timeout: 30000, validateStatus: () => true
+    })
+    const vids = res.data?.data?.videos
+    if (!Array.isArray(vids)) return []
+    return vids
+        .map(v => ({
+            id: String(v.video_id || v.id || ''),
+            usuario: v.author?.unique_id || '',
+            titulo: v.title || '',
+            duracion: v.duration || 0,
+            vistas: v.play_count || 0
+        }))
+        .filter(v => v.id && v.usuario)
+        .slice(0, MAX_RESULTADOS_BUSQUEDA)
+}
+
+const fmtDuracion = (s) => {
+    s = Math.max(0, Math.round(Number(s) || 0))
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+const fmtVistas = (n) => {
+    n = Number(n) || 0
+    return n >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1).replace('.0', '') + 'K' : String(n)
+}
+
 async function apiTikwm(url) {
     const res = await axios.get(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}&hd=1`, {
         headers: UA, timeout: 30000, validateStatus: () => true
@@ -95,20 +128,53 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
     const sendExternalMessage = (msgText) => m.reply(msgText)
 
     if (!args[0]) {
-        return await sendExternalMessage(`*— (Bostezo)*... ¿Viniste a pedirme algo sin saber qué?\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} https://vt.tiktok.com/ZSmrDCvrS/`);
+        return await sendExternalMessage(`*— (Bostezo)*... ¿Viniste a pedirme algo sin saber qué?\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} https://vt.tiktok.com/ZSmrDCvrS/\n🔎 ᥒ𝗈 𝗍𝗂𝖾ᥒᥱ𝗌 𝖾ᥒᥣᥲᥴᥱ? También BUSCO: *${usedPrefix}${command} gatito bailando*`);
     }
 
-    const isMode = ["audio", "video"].includes(args[0].toLowerCase());
-    const type = isMode ? (args[0].toLowerCase() === "audio" ? "mp3" : "mp4") : "info";
-    const queryOrUrl = isMode ? args[1] : args[0];
+    let isMode = ["audio", "video"].includes(args[0].toLowerCase());
+    let type = isMode ? (args[0].toLowerCase() === "audio" ? "mp3" : "mp4") : "info";
+    let queryOrUrl = isMode ? args[1] : args[0];
 
     if (isMode && !queryOrUrl) {
-        return await sendExternalMessage(`*— Oye...* si me dices "${args[0].toLowerCase()}" también necesito el enlace.\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} ${args[0].toLowerCase()} https://vt.tiktok.com/ZSmrDCvrS/`);
+        return await sendExternalMessage(`*— Oye...* si me dices "${args[0].toLowerCase()}" también necesito un enlace o qué buscar.\n\n🎧 ᥱȷᥱm⍴ᥣ᥆:\n${usedPrefix}${command} ${args[0].toLowerCase()} https://vt.tiktok.com/ZSmrDCvrS/\n${usedPrefix}${command} ${args[0].toLowerCase()} gatito bailando`);
     }
 
     await m.react("🔎");
 
     try {
+        // ── sin enlace: buscar en TikTok (o elegir un resultado de la búsqueda previa) ──
+        const claveBusqueda = `${m.chat}|${m.sender}`
+        const pendiente = busquedasPendientes.get(claveBusqueda)
+        const pendienteVivo = pendiente && Date.now() - pendiente.ts < ESPERA_BUSQUEDA_MS ? pendiente : null
+        if (!pendienteVivo) busquedasPendientes.delete(claveBusqueda)
+
+        const esEnlace = /(?:tiktok\.com|vm\.tiktok|vt\.tiktok)/i.test(queryOrUrl || '')
+
+        if (!esEnlace) {
+            const numero = parseInt(queryOrUrl)
+            if (pendienteVivo && numero >= 1 && numero <= pendienteVivo.lista.length) {
+                // eligió un resultado: enlace canónico y sigue el MISMO flujo de siempre
+                const elegida = pendienteVivo.lista[numero - 1]
+                queryOrUrl = `https://www.tiktok.com/@${elegida.usuario}/video/${elegida.id}`
+                if (pendienteVivo.modo && !isMode) { isMode = true; type = pendienteVivo.modo }
+            } else {
+                // buscar — con TODAS las palabras (antes solo se usaba args[0])
+                const textoBusqueda = (isMode ? args.slice(1) : args).join(' ').trim() || queryOrUrl
+                const lista = await apiBuscarTikwm(textoBusqueda).catch(() => [])
+                if (!lista.length) throw new Error(`No encontré nada en TikTok para "${textoBusqueda}".`)
+                busquedasPendientes.set(claveBusqueda, { lista, modo: isMode ? type : null, ts: Date.now() })
+                for (const [k, v] of busquedasPendientes) {
+                    if (Date.now() - v.ts > ESPERA_BUSQUEDA_MS) busquedasPendientes.delete(k)
+                }
+                const lineas = lista.map((v, i) =>
+                    `> *${i + 1}.* @${v.usuario} — ${fmtDuracion(v.duracion)} — ${fmtVistas(v.vistas)} vistas\n> ⌞ ${(v.titulo || 'sin título').slice(0, 60)}`)
+                const pistaModo = isMode ? ` y sale *${args[0].toLowerCase()}* directo` : ''
+                return await sendExternalMessage(
+                    `₊‧꒰ 🔎 ꒱ 𝙏𝙄𝙆𝙏𝙊𝙆 — *"${textoBusqueda.slice(0, 60)}"*\n\n${lineas.join('\n')}\n\n*— Responde* con *${usedPrefix}${command} <número>*${pistaModo} (vigencia 5 min).`
+                )
+            }
+        }
+
         // cadena: tikwm primero, alyacore de reserva
         let data = null
         try { data = await apiTikwm(queryOrUrl) } catch { data = null }
@@ -181,7 +247,7 @@ const handler = async (m, { conn, args, usedPrefix, command }) => {
     }
 };
 
-handler.help = ['tiktok <URL>'];
+handler.help = ['tiktok <URL | búsqueda>'];
 handler.tags = ['descargas'];
 // aliases tiktoks/tts restaurados (existían en la versión auditada y se habían perdido)
 handler.command = ['tiktok', 'tt', 'tiktoks', 'tts'];
