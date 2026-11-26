@@ -2,7 +2,7 @@
 // el mismo comando). Combina: marca personalizada con • o | (de tools-sticker.js),
 // soporte de URLs, alias 'stiker' y cadena de respaldo por subida web
 // (de tools-stickers.js), ruta rápida webp con addExif y reacciones.
-import { sticker, addExif, stickerConAudio, videoTieneAudio, enviarStickerConAudio } from '../../lib/sticker.js'
+import { sticker, addExif, stickerConAudio, stickerConAudioCompleto, stickerConAudioHD, videoTieneAudio, enviarStickerConAudio } from '../../lib/sticker.js'
 import uploadFile from '../../lib/uploadFile.js'
 import uploadImage from '../../lib/uploadImage.js'
 import { webp2png } from '../../lib/webp2mp4.js'
@@ -11,7 +11,7 @@ const isUrl = (text) => {
     return text.match(new RegExp(/https?:\/\/(www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&/=]*)(jpe?g|gif|png)/, 'gi'))
 }
 
-let handler = async (m, { conn, args }) => {
+let handler = async (m, { conn, args, command }) => {
     const userData = global.db.data.users[m.sender] || {}
     const packDefecto = userData.text1 || global.packsticker
     const authorDefecto = userData.text2 || global.packsticker2
@@ -26,6 +26,14 @@ let handler = async (m, { conn, args }) => {
     const sonidoPedido = QUIERE_SONIDO.test(txt)
     const mudoPedido = QUIERE_MUDO.test(txt)
     const txtLimpio = txt.replace(QUIERE_SONIDO, ' ').replace(QUIERE_MUDO, ' ').replace(/\s+/g, ' ').trim()
+
+    // ── modos del sticker con sonido: /s = el balance clásico (congelado),
+    // /sfull y /stickerfull = 30s COMPLETOS (sacrifica fps hasta 15),
+    // /shd y /stickerhd = máxima calidad/fps (recorta la duración lo justo).
+    // El dispatcher ya normaliza el comando a minúsculas — /StickerFull funciona.
+    const cmdNombre = (command || '').toLowerCase()
+    const modoFull = cmdNombre === 'sfull' || cmdNombre === 'stickerfull'
+    const modoHd = cmdNombre === 'shd' || cmdNombre === 'stickerhd'
 
     try {
         const q = m.quoted ? m.quoted : m
@@ -43,7 +51,7 @@ let handler = async (m, { conn, args }) => {
                 await conn.sendMessage(m.chat, { sticker: stiker }, { quoted: m })
                 return await conn.sendMessage(m.chat, { react: { text: '✔️', key: m.key } })
             }
-            return conn.reply(m.chat, 'ꕤ Envía o cita una imagen, video o sticker para hacer sticker.\n> También acepta un *URL* de imagen: *' + (m.usedPrefix || '.') + 's https://...*.jpg\n> Y marca personalizada: *.s pack • autor*\n> Los *videos* con audio ahora salen CON sonido; *.s <video> mudo* para el clásico silencioso', m)
+            return conn.reply(m.chat, 'ꕤ Envía o cita una imagen, video o sticker para hacer sticker.\n> También acepta un *URL* de imagen: *' + (m.usedPrefix || '.') + 's https://...*.jpg\n> Y marca personalizada: *.s pack • autor*\n> Los *videos* con audio ahora salen CON sonido; *.s <video> mudo* para el clásico silencioso\n> Para videos largos: *.sfull* = 30s completos (baja fps si hace falta) y *.shd* = máxima calidad/fps (recorta la duración lo justo)', m)
         }
 
         if (sonidoPedido && /image|webp/i.test(mime)) {
@@ -86,7 +94,9 @@ let handler = async (m, { conn, args }) => {
             if (!mudoPedido && /video/i.test(mime)) {
                 const vaConSonido = sonidoPedido || await videoTieneAudio(buffer).catch(() => false)
                 if (vaConSonido) {
-                    const conSonido = await stickerConAudio(buffer).catch(() => null)
+                    // /s usa su escalera original (sin cambios); sfull/shd las suyas
+                    const fnAudio = modoFull ? stickerConAudioCompleto : modoHd ? stickerConAudioHD : stickerConAudio
+                    const conSonido = await fnAudio(buffer).catch(() => null)
                     if (conSonido && Buffer.isBuffer(conSonido.sticker) && conSonido.audio) {
                         const betaOk = await enviarStickerConAudio(conn, m.chat, conSonido.sticker, conSonido.audio, m).catch(() => false)
                         if (betaOk) return await conn.sendMessage(m.chat, { react: { text: '✔️', key: m.key } })
@@ -120,9 +130,9 @@ let handler = async (m, { conn, args }) => {
     }
 }
 
-handler.help = ['sticker <img|url>', 'stiker', 's <video> — sticker con sonido', 's <video> mudo — clásico']
+handler.help = ['sticker <img|url>', 'stiker', 's <video> — sticker con sonido', 's <video> mudo — clásico', 'sfull <video> — 30s completos', 'shd <video> — máxima calidad/fps']
 handler.tags = ['stickers']
-handler.command = ['s', 'sticker', 'stiker']
+handler.command = ['s', 'sticker', 'stiker', 'sfull', 'stickerfull', 'shd', 'stickerhd']
 handler.register = true
 
 export default handler
